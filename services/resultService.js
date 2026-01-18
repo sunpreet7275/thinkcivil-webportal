@@ -74,12 +74,12 @@ class ResultService {
         isCorrect,
         isAttempted,
         correctAnswer: question.correctAnswer,
-        marksObtained: marksForThisQuestion
+        marksObtained: parseFloat(marksForThisQuestion.toFixed(2))
       };
     });
 
     // Ensure score doesn't go below zero
-    score = Math.max(0, score);
+    score = Math.max(0, parseFloat(score.toFixed(2)));
     
     const totalMarks = test.totalMarks;
     const percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0;
@@ -113,8 +113,8 @@ class ResultService {
         correctAnswers,
         wrongAnswers,
         unattempted,
-        marksPerQuestion: test.marksPerQuestion,
-        negativeMarks: test.negativeMarks
+        marksPerQuestion: parseFloat(test.marksPerQuestion.toFixed(2)),
+        negativeMarks: parseFloat(test.negativeMarks.toFixed(2))
       }
     };
   }
