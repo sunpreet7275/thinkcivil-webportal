@@ -26,7 +26,7 @@ const getMenuItems = (user) => {
       { name: 'Syllabus Master', path: '/syllabus-master', icon: 'menu_book' },
       { name: 'Tag Master', path: '/tag-master', icon: 'local_offer' },
       { name: 'Question Master', path: '/questions-master', icon: 'quiz' },
-      { name: 'Pre Directory Master', path: '/directory-master', icon: 'library_books' },
+      { name: 'Pre Resources Directory', path: '/directory-master', icon: 'library_books' },
       { name: 'Meeting Master', path: '/meeting-admin', icon: 'groups' },
       { name: 'Mentorship Plans', path: '/admin-mentorship', icon: 'school' },
       { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' }
@@ -51,7 +51,7 @@ const getMenuItems = (user) => {
           ...commonItems,
           { name: 'Prelims Tests', path: '/prelims-tests', icon: 'quiz' },
           { name: 'Prelims Results', path: '/prelims-results', icon: 'assignment' },
-          { name: 'Mentorship Directory', path: '/pre-materials', icon: 'library_books' },
+          { name: 'Resources', path: '/pre-materials', icon: 'library_books' },
           { name: 'Mentorship Sessions', path: '/pre-session', icon: 'groups' },
 
           // { name: 'Test History', path: '/test-history', icon: 'history' },
