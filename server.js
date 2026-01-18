@@ -9,12 +9,7 @@ const initializeAdmin = require('./utils/initializeAdmin');
 
 const app = express();
 
-// const path = require("path");
-// app.use(express.static(path.join(__dirname, "dist/thinkcivil-frontend")));
 
-// app.get("*", (req, res) => {
-//   res.sendFile(path.join(__dirname, "dist/thinkcivil-frontend/index.html"));
-// });
 
 
 // Connect to MongoDB
@@ -68,12 +63,7 @@ app.get('/api/health', (req, res) => {
 });
 
 
-// const path = require("path");
-// app.use(express.static(path.join(__dirname, "dist/thinkcivil-frontend")));
 
-// app.get("*", (req, res) => {
-//   res.sendFile(path.join(__dirname, "dist/thinkcivil-frontend/index.html"));
-// });
 
 
 
