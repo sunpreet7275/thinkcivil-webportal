@@ -15,8 +15,34 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors());
+
+// const cors = require('cors');
+
+const allowedOrigins = [
+  'https://thinkcivilias.com',
+  'https://www.thinkcivilias.com',
+  'https://admin.thinkcivilias.com'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow server-to-server or Postman requests
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+
+app.options('*', cors());
+
 app.use(express.json()); // Increase limit for file uploads
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
@@ -51,6 +77,10 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/mentorship', require('./routes/mentorship'));
 app.use('/api/announcements', require('./routes/announcement'));
 
+// Add this to your Express app configuration
+app.use('/api/topicwiseDirectory', require('./routes/topicwiseDirectory'));
+
+app.use('/api/videoLecture', require('./routes/videoLecture'));
 
 
 // Health check route
