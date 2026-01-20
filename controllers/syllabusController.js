@@ -1,16 +1,50 @@
 const Syllabus = require('../models/Syllabus');
 const { handleError } = require('../middleware/errorHandler');
 
+// Helper function to clean response (remove _id and __v)
+const cleanResponse = (data) => {
+  if (!data) return data;
+  
+  const cleanObject = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    // Remove mongoose specific fields
+    delete obj._id;
+    delete obj.__v;
+    delete obj.id;
+    
+    // Recursively clean nested objects and arrays
+    Object.keys(obj).forEach(key => {
+      if (Array.isArray(obj[key])) {
+        obj[key] = obj[key].map(item => cleanObject(item));
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        obj[key] = cleanObject(obj[key]);
+      }
+    });
+    
+    return obj;
+  };
+  
+  return cleanObject(JSON.parse(JSON.stringify(data)));
+};
+
 // Create or Update Prelims Syllabus
 const createOrUpdatePrelims = async (req, res) => {
   try {
-    // Deactivate any existing active prelims syllabus FIRST
+    // Validate input
+    if (!req.body.gs1 || !req.body.gs2) {
+      return res.status(400).json({
+        message: 'Both GS1 and GS2 are required'
+      });
+    }
+
+    // Deactivate any existing active prelims syllabus
     await Syllabus.updateMany(
       { type: 'prelims', isActive: true },
       { isActive: false }
     );
 
-    // Check if any prelims syllabus exists (active or inactive)
+    // Check if any prelims syllabus exists
     let existingSyllabus = await Syllabus.findOne({ type: 'prelims' });
 
     if (existingSyllabus) {
@@ -28,7 +62,7 @@ const createOrUpdatePrelims = async (req, res) => {
 
       return res.json({
         message: 'Prelims syllabus updated successfully',
-        syllabus: updatedSyllabus.prelims,
+        syllabus: cleanResponse(updatedSyllabus.prelims),
         action: 'updated'
       });
     } else {
@@ -44,7 +78,7 @@ const createOrUpdatePrelims = async (req, res) => {
 
       return res.status(201).json({
         message: 'Prelims syllabus created successfully',
-        syllabus: syllabus.prelims,
+        syllabus: cleanResponse(syllabus.prelims),
         action: 'created'
       });
     }
@@ -53,8 +87,6 @@ const createOrUpdatePrelims = async (req, res) => {
     handleError(res, error, 'Failed to process prelims syllabus');
   }
 };
-
-
 
 // Get Prelims Syllabus
 const getPrelimsSyllabus = async (req, res) => {
@@ -69,21 +101,32 @@ const getPrelimsSyllabus = async (req, res) => {
       });
     }
 
-    res.json(syllabus.prelims);
+    res.json(cleanResponse(syllabus.prelims));
   } catch (error) {
     handleError(res, error, 'Failed to fetch prelims syllabus');
   }
 };
 
+// Create or Update Mains Syllabus
 const createOrUpdateMains = async (req, res) => {
   try {
-    // First, deactivate ALL active mains syllabus
+    // Validate required fields
+    const requiredFields = ['essay', 'gs1', 'gs2', 'gs3', 'gs4'];
+    for (const field of requiredFields) {
+      if (!req.body[field]) {
+        return res.status(400).json({
+          message: `${field.toUpperCase()} is required`
+        });
+      }
+    }
+
+    // Deactivate ALL active mains syllabus
     await Syllabus.updateMany(
       { type: 'mains', isActive: true },
       { $set: { isActive: false } }
     );
 
-    // Now find any mains syllabus (active or inactive)
+    // Find any mains syllabus
     let existingSyllabus = await Syllabus.findOne({ type: 'mains' });
 
     let syllabus;
@@ -111,13 +154,9 @@ const createOrUpdateMains = async (req, res) => {
       await syllabus.save();
     }
 
-    // Remove _id fields from the response
-    const cleanSyllabus = JSON.parse(JSON.stringify(syllabus.mains));
-    removeIds(cleanSyllabus);
-
     return res.json({
-      message: 'Mains syllabus created successfully',
-      syllabus: cleanSyllabus,
+      message: 'Mains syllabus saved successfully',
+      syllabus: cleanResponse(syllabus.mains),
       action: existingSyllabus ? 'updated' : 'created'
     });
   } catch (error) {
@@ -126,26 +165,7 @@ const createOrUpdateMains = async (req, res) => {
   }
 };
 
-// Helper function to remove _id fields
-const removeIds = (obj) => {
-  if (Array.isArray(obj)) {
-    obj.forEach(item => {
-      delete item._id;
-      if (typeof item === 'object' && item !== null) {
-        removeIds(item);
-      }
-    });
-  } else if (typeof obj === 'object' && obj !== null) {
-    delete obj._id;
-    Object.values(obj).forEach(value => {
-      if (typeof value === 'object' && value !== null) {
-        removeIds(value);
-      }
-    });
-  }
-};
-
-// Get Mains Syllabus - Clean response
+// Get Mains Syllabus
 const getMainsSyllabus = async (req, res) => {
   try {
     const syllabus = await Syllabus.findOne({ type: 'mains', isActive: true })
@@ -158,10 +178,7 @@ const getMainsSyllabus = async (req, res) => {
       });
     }
 
-    // Remove _id fields
-    removeIds(syllabus.mains);
-
-    res.json(syllabus.mains);
+    res.json(cleanResponse(syllabus.mains));
   } catch (error) {
     handleError(res, error, 'Failed to fetch mains syllabus');
   }
