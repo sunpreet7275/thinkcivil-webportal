@@ -1,4 +1,4 @@
-const VideoLecture = require('../models/videoLecture');
+const VideoLecture = require('../models/VideoLecture');
 
 // Create folder for a specific category
 const createFolder = async (req, res) => {
