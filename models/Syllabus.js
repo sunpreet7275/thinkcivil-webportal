@@ -50,17 +50,17 @@ const documentSchema = new mongoose.Schema({
 });
 
 // Custom validation to ensure at least one language is provided
-documentSchema.pre('validate', function(next) {
-  const hasEnglish = this.fileNameEnglish || this.fileLinkEnglish;
-  const hasHindi = this.fileNameHindi || this.fileLinkHindi;
+// documentSchema.pre('validate', function(next) {
+//   const hasEnglish = this.fileNameEnglish || this.fileLinkEnglish;
+//   const hasHindi = this.fileNameHindi || this.fileLinkHindi;
   
-  if (!hasEnglish && !hasHindi) {
-    const err = new Error('At least one language (English or Hindi) must be provided');
-    next(err);
-  } else {
-    next();
-  }
-});
+//   if (!hasEnglish && !hasHindi) {
+//     const err = new Error('At least one language (English or Hindi) must be provided');
+//     next(err);
+//   } else {
+//     next();
+//   }
+// });
 
 const subjectSchema = new mongoose.Schema({
   subjectName: {
@@ -132,31 +132,31 @@ syllabusSchema.pre('save', function(next) {
   }
   
   // Validate mains
-  if (this.mains) {
-    if (this.mains.essay && !validateDocuments(this.mains.essay)) {
-      return next(new Error('Mains Essay: At least one language must be provided'));
-    }
-    for (let i = 1; i <= 4; i++) {
-      const paper = this.mains[`gs${i}`];
-      if (paper && !validateDocuments(paper)) {
-        return next(new Error(`Mains GS${i}: At least one language must be provided`));
-      }
-    }
+  // if (this.mains) {
+  //   if (this.mains.essay && !validateDocuments(this.mains.essay)) {
+  //     return next(new Error('Mains Essay: At least one language must be provided'));
+  //   }
+  //   for (let i = 1; i <= 4; i++) {
+  //     const paper = this.mains[`gs${i}`];
+  //     if (paper && !validateDocuments(paper)) {
+  //       return next(new Error(`Mains GS${i}: At least one language must be provided`));
+  //     }
+  //   }
     
-    if (this.mains.optionalSubjects) {
-      for (const subject of this.mains.optionalSubjects) {
-        if (subject.documents) {
-          for (const doc of subject.documents) {
-            const hasEnglish = doc.fileNameEnglish || doc.fileLinkEnglish;
-            const hasHindi = doc.fileNameHindi || doc.fileLinkHindi;
-            if (!hasEnglish && !hasHindi) {
-              return next(new Error(`Optional Subject "${subject.subjectName}": At least one language must be provided`));
-            }
-          }
-        }
-      }
-    }
-  }
+  //   if (this.mains.optionalSubjects) {
+  //     for (const subject of this.mains.optionalSubjects) {
+  //       if (subject.documents) {
+  //         for (const doc of subject.documents) {
+  //           const hasEnglish = doc.fileNameEnglish || doc.fileLinkEnglish;
+  //           const hasHindi = doc.fileNameHindi || doc.fileLinkHindi;
+  //           if (!hasEnglish && !hasHindi) {
+  //             return next(new Error(`Optional Subject "${subject.subjectName}": At least one language must be provided`));
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
   
   next();
 });

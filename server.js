@@ -84,6 +84,7 @@ app.use('/api/topicwiseDirectory', require('./routes/topicwiseDirectory'));
 
 app.use('/api/videoLecture', require('./routes/videoLecture'));
 
+app.use('/api/freeResource', require('./routes/freeResource'));
 
 // Health check route
 app.get('/api/health', (req, res) => {

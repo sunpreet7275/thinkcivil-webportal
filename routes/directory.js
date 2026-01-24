@@ -7,9 +7,7 @@ const {
   getItemById,
   updateFile,
   renameItem,
-  deleteItem,
-  getFilesByType,
-  searchFiles
+  deleteItem
 } = require('../controllers/directoryController');
 const { auth } = require('../middleware/auth');
 
