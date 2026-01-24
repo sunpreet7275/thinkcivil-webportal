@@ -29,9 +29,8 @@ const getMenuItems = (user) => {
       { name: 'Pre Resources Directory', path: '/directory-master', icon: 'library_books' },
       { name: 'Meeting Master', path: '/meeting-admin', icon: 'groups' },
       { name: 'Mentorship Plans', path: '/admin-mentorship', icon: 'school' },
-      { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' }
-
-
+      { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' },
+      { name: 'Free Resource', path: '/free-resource-admin', icon: 'inventory_2' }
 
     ];
   }
