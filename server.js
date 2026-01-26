@@ -86,6 +86,9 @@ app.use('/api/videoLecture', require('./routes/videoLecture'));
 
 app.use('/api/freeResource', require('./routes/freeResource'));
 
+app.use('/api/simpleNews', require('./routes/simpleNews'));
+
+
 // Health check route
 app.get('/api/health', (req, res) => {
   res.json({ 

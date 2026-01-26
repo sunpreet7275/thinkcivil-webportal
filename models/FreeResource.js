@@ -43,6 +43,10 @@ const freeResourceSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  fileDescription: {  // ADD THIS FIELD
+    type: String,
+    default: ''
+  },
   fileType: {
     type: String,
     enum: ['pdf', 'image', 'video', 'audio', 'document', 'other'],
