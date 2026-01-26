@@ -38,7 +38,7 @@ const getPublicDirectoryTree = async (req, res) => {
     }
 
     const items = await FreeResource.find(query)
-      .select('name nameHi type fullPath fileLink fileType createdAt updatedAt')
+      .select('name nameHi type fullPath fileLink fileDescription fileType createdAt updatedAt')
       .sort({ type: 1, name: 1 });
 
     res.json({
@@ -75,7 +75,7 @@ const getPublicModuleTree = async (req, res) => {
     const getAllChildren = async (parentId) => {
       const children = await FreeResource.find({
         parent: parentId
-      }).select('name nameHi type fullPath fileLink fileType createdAt updatedAt')
+      }).select('name nameHi type fullPath fileLink fileDescription fileType createdAt updatedAt')
         .sort({ type: 1, name: 1 });
 
       for (let child of children) {
@@ -113,7 +113,7 @@ const getPublicFile = async (req, res) => {
     const file = await FreeResource.findOne({
       _id: id,
       type: 'file'
-    }).select('name nameHi type fullPath fileLink fileType createdAt updatedAt');
+    }).select('name nameHi type fullPath fileLink fileDescription fileType createdAt updatedAt');
 
     if (!file) {
       return res.status(404).json({ 
@@ -260,7 +260,7 @@ const createFolder = async (req, res) => {
 // Create File
 const createFile = async (req, res) => {
   try {
-    const { name, parentId, fileLink } = req.body;
+    const { name, parentId, fileLink, fileDescription } = req.body;
     const userId = req.user._id;
 
     if (!name || typeof name !== 'string') {
@@ -342,6 +342,7 @@ const createFile = async (req, res) => {
       fullPath,
       path: parent.fullPath,
       fileLink,
+      fileDescription: fileDescription || '', // ADD THIS LINE
       fileType,
       createdBy: userId
     });
@@ -460,7 +461,7 @@ const updateFile = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
-    const { name, fileLink } = req.body;
+    const { name, fileLink, fileDescription } = req.body;
 
     const file = await FreeResource.findOne({
       _id: id,
@@ -497,6 +498,10 @@ const updateFile = async (req, res) => {
       }
       
       file.name = name;
+    }
+
+    if (fileDescription !== undefined) { // ADD THIS SECTION
+      file.fileDescription = fileDescription;
     }
 
     if (fileLink) {

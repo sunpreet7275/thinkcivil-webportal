@@ -30,7 +30,8 @@ const getMenuItems = (user) => {
       { name: 'Meeting Master', path: '/meeting-admin', icon: 'groups' },
       { name: 'Mentorship Plans', path: '/admin-mentorship', icon: 'school' },
       { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' },
-      { name: 'Free Resource', path: '/free-resource-admin', icon: 'inventory_2' }
+      { name: 'Free Resource', path: '/free-resource-admin', icon: 'inventory_2' },
+      { name: 'Simple News', path: '/simple-news-admin', icon: 'newspaper' }
 
     ];
   }
