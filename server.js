@@ -88,6 +88,9 @@ app.use('/api/freeResource', require('./routes/freeResource'));
 
 app.use('/api/simpleNews', require('./routes/simpleNews'));
 
+// Add this to your app.js or server.js
+app.use('/api/live-content', require('./routes/liveContent'));
+
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -108,6 +111,9 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
