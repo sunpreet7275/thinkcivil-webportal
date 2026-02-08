@@ -31,7 +31,8 @@ const getMenuItems = (user) => {
       { name: 'Mentorship Plans', path: '/admin-mentorship', icon: 'school' },
       { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' },
       { name: 'Free Resource', path: '/free-resource-admin', icon: 'inventory_2' },
-      { name: 'Simple News', path: '/simple-news-admin', icon: 'newspaper' }
+      { name: 'Simple News', path: '/simple-news-admin', icon: 'newspaper' },
+      { name: 'Live Content ', path: '/live-content-admin', icon: 'live_tv' }
 
     ];
   }
@@ -42,6 +43,8 @@ const getMenuItems = (user) => {
       case USER_TYPES.FRESH:
         return [
           ...commonItems,
+          { name: 'Demo Test', path: '/demo-test', icon: 'assignment' },
+
           // { name: 'My Profile', path: '/profile', icon: 'person' },
           // { name: 'Upgrade Plan', path: '/upgrade', icon: 'upgrade' }
         ];
@@ -53,6 +56,7 @@ const getMenuItems = (user) => {
           { name: 'Prelims Results', path: '/prelims-results', icon: 'assignment' },
           { name: 'Resources', path: '/pre-materials', icon: 'library_books' },
           { name: 'Mentorship Sessions', path: '/pre-session', icon: 'groups' },
+
 
           // { name: 'Test History', path: '/test-history', icon: 'history' },
           // { name: 'Current Affairs', path: '/current-affairs', icon: 'article' }
