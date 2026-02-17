@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -9,7 +11,10 @@ const initializeAdmin = require('./utils/initializeAdmin');
 
 const app = express();
 
-
+const razorpay = new Razorpay({
+  key_id: 'rzp_test_SCRsqadpelzm0v',
+  key_secret: 'VqhziyZY7pb5RMhlqtkT3FVD'
+});
 
 
 // Connect to MongoDB
@@ -90,6 +95,92 @@ app.use('/api/simpleNews', require('./routes/simpleNews'));
 
 // Add this to your app.js or server.js
 app.use('/api/live-content', require('./routes/liveContent'));
+
+app.use('/api/demo-tests', require('./routes/demoTest'));
+
+app.use('/api/quizzes', require('./routes/quiz'));
+
+app.post('/api/create-order', async (req, res) => {
+  try {
+    const { amount, currency, receipt, notes } = req.body;
+    
+    const options = {
+      amount: amount,
+      currency: currency || 'INR',
+      receipt: receipt,
+      notes: notes
+    };
+
+    const order = await razorpay.orders.create(options);
+    
+    res.json({
+      success: true,
+      id: order.id,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      receipt: order.receipt
+    });
+  } catch (error) {
+    console.error('Order creation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Verify Payment Endpoint
+app.post('/api/verify-payment', async (req, res) => {
+  try {
+    const {
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      plan,
+      amount,
+      gst
+    } = req.body;
+
+    // Generate signature for verification
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', 'VqhziyZY7pb5RMhlqtkT3FVD')
+      .update(body.toString())
+      .digest('hex');
+
+    // Verify signature
+    if (expectedSignature === razorpay_signature) {
+      // Payment is verified
+      // Here you can:
+      // 1. Update user subscription in database
+      // 2. Send confirmation email
+      // 3. Update order status
+      // 4. Generate invoice
+      
+      res.json({
+        success: true,
+        message: 'Payment verified successfully',
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+        plan: plan
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid signature'
+      });
+    }
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.use('/api/coupons', require('./routes/coupon'));
 
 
 // Health check route

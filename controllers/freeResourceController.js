@@ -8,7 +8,7 @@ const getPublicModules = async (req, res) => {
       type: 'module',
       parent: null
     }).select('name nameHi type createdAt updatedAt')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
 
     res.json({
       message: 'Public modules retrieved successfully',

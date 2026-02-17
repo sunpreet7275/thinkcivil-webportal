@@ -32,7 +32,13 @@ const getMenuItems = (user) => {
       { name: 'Announcement Master', path: '/announcement-master', icon: 'campaign' },
       { name: 'Free Resource', path: '/free-resource-admin', icon: 'inventory_2' },
       { name: 'Simple News', path: '/simple-news-admin', icon: 'newspaper' },
-      { name: 'Live Content ', path: '/live-content-admin', icon: 'live_tv' }
+      { name: 'Live Content', path: '/live-content-admin', icon: 'live_tv' },
+      { name: 'Demo Test', path: '/demo-test-admin', icon: 'quiz' },
+      { name: 'Manage Quiz', path: '/quizzes', icon: 'fact_check' },
+      { name: 'Manage Coupon', path: '/manage-coupon', icon: 'fact_check' }
+
+
+
 
     ];
   }
