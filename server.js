@@ -182,6 +182,7 @@ app.post('/api/verify-payment', async (req, res) => {
 
 app.use('/api/coupons', require('./routes/coupon'));
 
+app.use('/api/config', require('./routes/config'));
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -192,7 +193,65 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Add this temporary endpoint to verify orders
+// Add this to your backend for debugging
+app.get('/api/verify-order/:orderId', async (req, res) => {
+  try {
+    const Razorpay = require('razorpay');
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+    
+    const order = await razorpay.orders.fetch(req.params.orderId);
+    
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        status: order.status
+      }
+    });
+  } catch (error) {
+    res.status(404).json({
+      success: false,
+      message: 'Order not found in Razorpay',
+      error: error.message
+    });
+  }
+});
 
+// Add to your main server file (app.js/server.js)
+app.get('/api/debug/payment-config', (req, res) => {
+  // Only for debugging - remove in production
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  res.json({
+    keyId: keyId ? keyId.substring(0, 10) + '...' : 'Not set',
+    keyExists: !!keyId,
+    secretExists: !!process.env.RAZORPAY_KEY_SECRET,
+    environment: process.env.NODE_ENV || 'development',
+    // Don't send the actual secret
+  });
+});
+
+// Add to your server.js or app.js
+app.get('/api/debug/razorpay-keys', (req, res) => {
+  // ONLY FOR DEBUGGING - REMOVE IN PRODUCTION
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  
+  res.json({
+    keyIdExists: !!keyId,
+    keyIdPrefix: keyId ? keyId.substring(0, 7) : null,
+    keyIdLength: keyId ? keyId.length : 0,
+    keySecretExists: !!keySecret,
+    keySecretLength: keySecret ? keySecret.length : 0,
+    nodeEnv: process.env.NODE_ENV,
+    // Don't send actual keys
+  });
+});
 
 
 

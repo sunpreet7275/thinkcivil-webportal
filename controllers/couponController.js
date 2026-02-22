@@ -1,4 +1,3 @@
-// controllers/couponController.js
 const Coupon = require('../models/Coupon');
 const { handleError } = require('../middleware/errorHandler');
 
@@ -79,7 +78,7 @@ const validateCoupon = async (req, res) => {
         discountType: coupon.discountType,
         discountValue: coupon.discountValue,
         description: coupon.description,
-        isFree: coupon.isFree,
+        isOneTimePerUser: coupon.isOneTimePerUser,
         discountAmount: Math.round(discountAmount)
       }
     });
@@ -92,15 +91,25 @@ const validateCoupon = async (req, res) => {
 // Admin: Create new coupon
 const createCoupon = async (req, res) => {
   try {
-    const couponData = req.body;
+    let couponData = req.body;
     
-    // Generate random code for free coupons if not provided
-    if (couponData.isFree && !couponData.code) {
-      couponData.code = Coupon.generateFreeCoupon();
+    // Generate random code if not provided (for quick generation)
+    if (!couponData.code) {
+      couponData.code = Coupon.generateRandomCode();
+    }
+
+    // Handle one-time per user coupons (free or custom percentage)
+    if (couponData.isOneTimePerUser) {
+      // Force perUserLimit to 1 for one-time coupons
+      couponData.perUserLimit = 1;
+      
+      // If discountValue is 100, it's effectively a free coupon
+      // No additional validation needed as it's already handled by the schema
     }
 
     const coupon = new Coupon({
       ...couponData,
+      code: couponData.code.toUpperCase(),
       createdBy: req.user._id
     });
 
@@ -121,6 +130,9 @@ const updateCoupon = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+
+    // Don't allow updating isOneTimePerUser after creation
+    delete updates.isOneTimePerUser;
 
     const coupon = await Coupon.findByIdAndUpdate(
       id,

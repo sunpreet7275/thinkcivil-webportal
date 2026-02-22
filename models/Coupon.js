@@ -1,4 +1,3 @@
-// models/Coupon.js
 const mongoose = require('mongoose');
 
 const couponSchema = new mongoose.Schema({
@@ -21,10 +20,10 @@ const couponSchema = new mongoose.Schema({
   discountValue: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
   },
-  // For 100% discount (free) coupons
-  isFree: {
+  // For special one-time use coupons (free or custom percentage)
+  isOneTimePerUser: {
     type: Boolean,
     default: false
   },
@@ -96,8 +95,8 @@ const couponSchema = new mongoose.Schema({
 couponSchema.index({ code: 1 });
 couponSchema.index({ isActive: 1, validFrom: 1, validUntil: 1 });
 
-// Method to generate random 12-digit alphanumeric free coupon
-couponSchema.statics.generateFreeCoupon = function() {
+// Method to generate random 12-digit alphanumeric coupon code
+couponSchema.statics.generateRandomCode = function() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
   for (let i = 0; i < 12; i++) {

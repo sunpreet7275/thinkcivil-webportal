@@ -13,21 +13,24 @@ const {
 const { auth, adminAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimiter');
 
+// All routes require authentication
+router.use(auth);
+
 // Payment order creation
-router.post('/create-order', auth, apiLimiter, createRazorpayOrder);
+router.post('/create-order', apiLimiter, createRazorpayOrder);
 
 // Payment verification
-router.post('/verify-payment', auth, apiLimiter, verifyRazorpayPayment);
+router.post('/verify-payment', apiLimiter, verifyRazorpayPayment);
 
 // Free plan activation
-router.post('/activate-free-plan', auth, apiLimiter, activateFreePlan);
+router.post('/activate-free-plan', apiLimiter, activateFreePlan);
 
 // User payment routes
-router.post('/process', auth, apiLimiter, processPayment);
-router.get('/history', auth, apiLimiter, getPaymentHistory);
-router.get('/:id', auth, apiLimiter, getPaymentDetails);
+router.post('/process', apiLimiter, processPayment);
+router.get('/history', apiLimiter, getPaymentHistory);
+router.get('/:id', apiLimiter, getPaymentDetails);
 
-// Admin payment routes
-router.get('/admin/all', auth, adminAuth, apiLimiter, getAllPayments);
+// Admin routes
+router.get('/admin/all', adminAuth, apiLimiter, getAllPayments);
 
 module.exports = router;

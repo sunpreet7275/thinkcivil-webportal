@@ -174,7 +174,7 @@ static async submitQuiz(quizId, submissionData) {
   static async getQuizLeaderboard(quizId) {
     const submissions = await QuizSubmission.find({ quiz: quizId })
       .sort({ score: -1, timeTaken: 1, submittedAt: 1 })
-      .select('name email phone score timeTaken correctAnswers submittedAt')
+      .select('name email phone score timeTaken totalQuestions correctAnswers submittedAt')
       .lean();
 
     // Add ranks
