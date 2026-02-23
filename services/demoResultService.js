@@ -12,11 +12,6 @@ class DemoResultService {
       });
     
     if (!test) throw new Error('Demo test not found');
-    
-    // Check if test is active
-    if (!test.isActive) {
-      throw new Error('This demo test is no longer active');
-    }
 
     // Validate that we have questions populated
     if (!test.questions || test.questions.length === 0) {
@@ -130,8 +125,16 @@ class DemoResultService {
       .sort({ submittedAt: -1 });
   }
 
+  static async getTestResults(testId) {
+    return await DemoResult.find({ test: testId })
+      .populate('student', 'fullName email')
+      .sort({ score: -1, submittedAt: 1 });
+  }
+
   static async getStudentDemoTestResult(testId, studentId) {
+    // Get the most recent result for this test and student
     return await DemoResult.findOne({ test: testId, student: studentId })
+      .sort({ submittedAt: -1 })
       .populate({
         path: 'test',
         select: 'title description duration marksPerQuestion negativeMarks questionUids',
@@ -147,30 +150,55 @@ class DemoResultService {
       .populate('student', 'fullName email');
   }
 
-  static async getDemoResultById(resultId) {
+  static async getStudentResultsForTests(studentId, testIds) {
+    return await DemoResult.find({ 
+      student: studentId, 
+      test: { $in: testIds } 
+    })
+    .populate('test', '_id')
+    .select('test');
+  }
+
+  static async calculateStudentRank(testId, studentId) {
+    const results = await DemoResult.find({ test: testId })
+      .populate('student', 'fullName email')
+      .sort({ score: -1, submittedAt: 1 })
+      .lean();
+
+    const sortedResults = results.sort((a, b) => {
+      // First sort by score (descending)
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      // If scores are equal, sort by submission time (earlier first)
+      return new Date(a.submittedAt) - new Date(b.submittedAt);
+    });
+
+    // Find the student's rank
+    const rankIndex = sortedResults.findIndex(result => 
+      result.student._id.toString() === studentId.toString()
+    );
+
+    return {
+      rank: rankIndex >= 0 ? rankIndex + 1 : sortedResults.length + 1,
+      totalStudents: sortedResults.length
+    };
+  }
+
+  static async calculateRankings(results) {
+    const sortedResults = results.sort((a, b) => b.score - a.score || a.submittedAt - b.submittedAt);
+    
+    return sortedResults.map((result, index) => ({
+      ...result.toObject(),
+      rank: index + 1,
+      totalStudents: sortedResults.length
+    }));
+  }
+
+  static async getResultById(resultId) {
     return await DemoResult.findById(resultId)
       .populate('test', 'title questionUids marksPerQuestion negativeMarks')
       .populate('student', 'fullName email');
-  }
-
-  static async canTakeDemoTest(testId, studentId) {
-    // Check if test exists and is active
-    const test = await DemoTest.findById(testId);
-    if (!test || !test.isActive) {
-      return { canTake: false, reason: 'Demo test is not available' };
-    }
-
-    // Check if student has already taken this demo test
-    const existingResult = await DemoResult.findOne({ test: testId, student: studentId });
-    if (existingResult) {
-      return { 
-        canTake: false, 
-        reason: 'You have already taken this demo test',
-        submittedAt: existingResult.submittedAt
-      };
-    }
-
-    return { canTake: true, reason: 'Demo test is available' };
   }
 }
 

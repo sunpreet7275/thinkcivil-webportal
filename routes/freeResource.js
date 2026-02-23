@@ -11,6 +11,8 @@ const {
   updateModule,
   renameItem,
   deleteItem,
+  reorderModules,        // Make sure this is imported
+  updateModuleOrder,      // Make sure this is imported
   // Public view methods
   getPublicModules,
   getPublicDirectoryTree,
@@ -42,34 +44,33 @@ router.get('/public/files/:id', getPublicFile);
 // All admin routes require authentication
 router.use(auth);
 
-// Create new module
+// ========== MODULE ROUTES ==========
+// IMPORTANT: Order matters - static routes BEFORE dynamic routes
+
+// 1. STATIC ROUTES (no parameters) - MUST COME FIRST
+router.put('/modules/reorder', reorderModules);  // This should match first
 router.post('/modules', createModule);
-
-// Create folder inside module/folder
-router.post('/folders', createFolder);
-
-// Create file inside module/folder
-router.post('/files', createFile);
-
-// Get all modules (admin view with permissions)
 router.get('/modules', getModules);
 
-// Get directory tree (for current location)
-router.get('/tree', getDirectoryTree);
+// 2. ROUTES WITH SPECIFIC PATHS
+router.put('/modules/:id/order', updateModuleOrder);  // More specific than :id
+router.get('/modules/:id/tree', getModuleTree);        // More specific than :id
 
-// Get complete module tree (with all children)
-router.get('/modules/:id/tree', getModuleTree);
+// 3. DYNAMIC ROUTES (with parameters) - MUST COME LAST
+router.put('/modules/:id', updateModule);  // This catches anything with /modules/:id
 
-// Update file
+// ========== FOLDER ROUTES ==========
+router.post('/folders', createFolder);
+
+// ========== FILE ROUTES ==========
+router.post('/files', createFile);
 router.put('/files/:id', updateFile);
 
-// Update module
-router.put('/modules/:id', updateModule);
+// ========== DIRECTORY ROUTES ==========
+router.get('/tree', getDirectoryTree);
 
-// Rename folder/file (not module)
+// ========== ITEM ROUTES ==========
 router.put('/items/:id/rename', renameItem);
-
-// Delete any item (module/folder/file)
 router.delete('/items/:id', deleteItem);
 
 module.exports = router;

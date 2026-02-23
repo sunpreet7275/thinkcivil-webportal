@@ -75,8 +75,9 @@ const demoResultSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for better performance
-demoResultSchema.index({ test: 1, student: 1 }, { unique: true });
+// Index for better performance - Note: Not unique because students can retake demo tests
+demoResultSchema.index({ test: 1, student: 1 });
+demoResultSchema.index({ student: 1, submittedAt: -1 });
 demoResultSchema.index({ submittedAt: -1 });
 
 module.exports = mongoose.model('DemoResult', demoResultSchema);

@@ -1,14 +1,15 @@
 const FreeResource = require('../models/FreeResource');
 
 // Get all public modules
+// Get all public modules (with ordering)
 const getPublicModules = async (req, res) => {
   try {
     // Get all modules (public access, no user filtering)
     const modules = await FreeResource.find({
       type: 'module',
       parent: null
-    }).select('name nameHi type createdAt updatedAt')
-      .sort({ createdAt: 1 });
+    }).select('name nameHi type order createdAt updatedAt')
+      .sort({ order: 1, createdAt: 1 }); // Sort by order first, then date
 
     res.json({
       message: 'Public modules retrieved successfully',
@@ -362,11 +363,17 @@ const createFile = async (req, res) => {
 };
 
 // Get all modules
+// Get all modules (with ordering)
 const getModules = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const modules = await FreeResource.getAllModules(userId);
+    const modules = await FreeResource.find({
+      type: 'module',
+      parent: null,
+      createdBy: userId
+    }).select('name nameHi type order createdAt updatedAt')
+      .sort({ order: 1, createdAt: 1 }); // Sort by order first, then date
 
     res.json({
       message: 'Modules retrieved successfully',
@@ -711,6 +718,113 @@ const deleteItem = async (req, res) => {
   }
 };
 
+// Reorder modules
+// Reorder modules
+const reorderModules = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { modules } = req.body; // Expected: [{ id: 'moduleId', order: 0 }, ...]
+
+    console.log('Reorder request received:', { modules, userId });
+
+    if (!modules || !Array.isArray(modules)) {
+      return res.status(400).json({ 
+        message: 'Modules array is required' 
+      });
+    }
+
+    // Update each module's order
+    const updatePromises = modules.map((item) => {
+      if (!item.id || item.order === undefined) {
+        throw new Error('Each module must have id and order');
+      }
+      
+      return FreeResource.findOneAndUpdate(
+        { 
+          _id: item.id, 
+          type: 'module',
+          createdBy: userId 
+        },
+        { order: item.order },
+        { new: true }
+      );
+    });
+
+    const results = await Promise.all(updatePromises);
+    
+    // Check if any modules weren't found
+    const notFound = results.filter(r => !r);
+    if (notFound.length > 0) {
+      return res.status(404).json({ 
+        message: `${notFound.length} module(s) not found or access denied` 
+      });
+    }
+
+    // Fetch updated modules in correct order
+    const updatedModules = await FreeResource.find({
+      type: 'module',
+      parent: null,
+      createdBy: userId
+    }).select('name nameHi type order createdAt updatedAt')
+      .sort({ order: 1, createdAt: 1 });
+
+    res.json({
+      message: 'Modules reordered successfully',
+      modules: updatedModules
+    });
+
+  } catch (error) {
+    console.error('Reorder modules error:', error);
+    res.status(500).json({ 
+      message: 'Failed to reorder modules',
+      error: error.message 
+    });
+  }
+};
+
+// Update single module order
+const updateModuleOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+    const { order } = req.body;
+
+    if (order === undefined || typeof order !== 'number') {
+      return res.status(400).json({ 
+        message: 'Valid order number is required' 
+      });
+    }
+
+    const module = await FreeResource.findOneAndUpdate(
+      {
+        _id: id,
+        type: 'module',
+        createdBy: userId
+      },
+      { order },
+      { new: true }
+    );
+
+    if (!module) {
+      return res.status(404).json({ 
+        message: 'Module not found' 
+      });
+    }
+
+    res.json({
+      message: 'Module order updated successfully',
+      module
+    });
+
+  } catch (error) {
+    console.error('Update module order error:', error);
+    res.status(500).json({ 
+      message: 'Failed to update module order',
+      error: error.message 
+    });
+  }
+};
+
 module.exports = {
   createModule,
   createFolder,
@@ -722,6 +836,8 @@ module.exports = {
   updateModule, // Make sure this is exported
   renameItem,
   deleteItem,
+  reorderModules,        // Add this
+  updateModuleOrder,
   getPublicModules,
   getPublicDirectoryTree,
   getPublicModuleTree,

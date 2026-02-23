@@ -58,7 +58,11 @@ const freeResourceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  }
+  },
+    order: {
+    type: Number,
+    default: 0
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -73,6 +77,7 @@ freeResourceSchema.virtual('children', {
 });
 
 // Indexes
+freeResourceSchema.index({ order: 1, createdAt: -1 });
 freeResourceSchema.index({ parent: 1 });
 freeResourceSchema.index({ createdBy: 1 });
 freeResourceSchema.index({ fullPath: 1, createdBy: 1 }, { unique: true });

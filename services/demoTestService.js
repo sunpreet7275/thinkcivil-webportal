@@ -1,5 +1,4 @@
 const DemoTest = require('../models/DemoTest');
-const DemoResult = require('../models/DemoResult');
 const Question = require('../models/Question');
 
 class DemoTestService {
@@ -22,38 +21,49 @@ class DemoTestService {
     return await DemoTest.create(testData);
   }
 
-  static async getDemoTestById(testId) {
-    return await DemoTest.findById(testId)
-      .populate({
+  static async getDemoTestById(testId, options = {}) {
+    const query = DemoTest.findById(testId);
+    
+    if (options.populateCreator) {
+      query.populate('createdBy', 'fullName email');
+    }
+    
+    if (options.populateQuestions) {
+      query.populate({
         path: 'questions',
         select: '_id question description options correctAnswer uid tags',
         populate: {
           path: 'tags',
           select: 'tag'
         }
-      })
-      .populate('createdBy', 'fullName email')
-      .exec();
-  }
-
-  static async getAllActiveDemoTests() {
-    return await DemoTest.find({ isActive: true })
-      .populate({
-        path: 'questions',
-        select: '_id question uid',
-        match: { isActive: true }
-      })
-      .sort({ createdAt: -1 });
+      });
+    }
+    
+    return await query.exec();
   }
 
   static async getAvailableDemoTestsForStudent() {
-    return await DemoTest.find({ isActive: true })
+    const tests = await DemoTest.find({ isActive: true })
       .populate({
         path: 'questions',
         select: '_id question uid',
         match: { isActive: true }
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return tests;
+  }
+
+  static async getDemoTestWithValidation(testId, userId, userRole) {
+    const test = await this.getDemoTestById(testId, { populateQuestions: true });
+    if (!test) throw new Error('Demo test not found');
+
+    if (userRole === 'student') {
+      if (!test.isActive) throw new Error('Demo test is not active');
+    }
+
+    return test;
   }
 
   static async updateDemoTest(testId, updateData) {
@@ -82,8 +92,20 @@ class DemoTestService {
   static async deleteDemoTest(testId) {
     const test = await DemoTest.findByIdAndDelete(testId);
     if (test) {
+      // Optionally delete associated results or handle them as needed
+      const DemoResult = require('../models/DemoResult');
       await DemoResult.deleteMany({ test: testId });
     }
+    return test;
+  }
+
+  static async toggleDemoTestStatus(testId) {
+    const test = await DemoTest.findById(testId);
+    if (!test) throw new Error('Demo test not found');
+    
+    test.isActive = !test.isActive;
+    await test.save();
+    
     return test;
   }
 
@@ -97,16 +119,28 @@ class DemoTestService {
       .sort({ createdAt: -1 });
   }
 
-  static async toggleDemoTestStatus(testId) {
-    const test = await DemoTest.findById(testId);
-    if (!test) {
-      throw new Error('Demo test not found');
-    }
-    
-    test.isActive = !test.isActive;
-    await test.save();
-    
-    return test;
+  static async getAllActiveDemoTests() {
+    return await DemoTest.find({ isActive: true })
+      .populate({
+        path: 'questions',
+        select: '_id question.english uid',
+        match: { isActive: true }
+      })
+      .sort({ createdAt: -1 });
+  }
+
+  static async getDemoTestWithFullQuestions(testId) {
+    return await DemoTest.findById(testId)
+      .populate({
+        path: 'questions',
+        select: '_id question description options correctAnswer uid tags',
+        populate: {
+          path: 'tags',
+          select: 'tag'
+        }
+      })
+      .populate('createdBy', 'fullName email')
+      .exec();
   }
 }
 

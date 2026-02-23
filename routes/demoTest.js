@@ -9,31 +9,25 @@ const {
   getAvailableDemoTests,
   getDemoTestById,
   submitDemoTest,
-  checkDemoTestAvailability,
-  getStudentDemoTestResult,
-  getStudentDemoResults
+  checkDemoTestAvailability
 } = require('../controllers/demoTestController');
-const { auth, adminAuth, studentAuth } = require('../middleware/auth');
+const { auth, studentAuth, adminAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimiter');
 
-// Apply auth to all routes
-router.use(auth);
+// Apply authentication and rate limiting to all routes
+router.use(auth, apiLimiter);
 
-// Admin routes (admin only) - /api/demo-tests/admin
-router.post('/admin', adminAuth, createDemoTest);
+// Admin routes
+router.post('/create', adminAuth, createDemoTest);
 router.get('/admin', adminAuth, getDemoTests);
-router.put('/admin/:id', adminAuth, updateDemoTest);
-router.delete('/admin/:id', adminAuth, deleteDemoTest);
-router.patch('/admin/:id/toggle-status', adminAuth, toggleDemoTestStatus);
+router.put('/:id', adminAuth, updateDemoTest);
+router.delete('/delete/:id', adminAuth, deleteDemoTest);
+router.patch('/:id/toggle-status', adminAuth, toggleDemoTestStatus);
 
-// Public demo test routes (both admin and student) - /api/demo-tests/
-router.get('/available', getAvailableDemoTests); // Both can see available tests
-router.get('/:id', getDemoTestById); // Both can view test details
-
-// Student submission routes (student only) - /api/demo-tests/
+// Student routes
+router.get('/available', getAvailableDemoTests);
+router.get('/:id', getDemoTestById);
 router.post('/:id/submit', studentAuth, submitDemoTest);
-router.get('/:id/availability', checkDemoTestAvailability);
-router.get('/:testId/result', getStudentDemoTestResult);
-router.get('/student/results', getStudentDemoResults);
+router.get('/:id/check-availability', checkDemoTestAvailability);
 
 module.exports = router;

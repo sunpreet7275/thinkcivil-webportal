@@ -116,7 +116,6 @@ const getAvailableDemoTests = async (req, res) => {
         const existingResult = await DemoResultService.getStudentDemoTestResult(test._id, req.user._id);
         const isSubmitted = !!existingResult;
         
-        const testObj = test.toObject();
         const testWithoutAnswers = removeCorrectAnswers(test);
         
         return {
@@ -243,76 +242,6 @@ const checkDemoTestAvailability = async (req, res) => {
   }
 };
 
-const getStudentDemoTestResult = async (req, res) => {
-  try {
-    const result = await DemoResultService.getStudentDemoTestResult(req.params.testId, req.user._id);
-    
-    if (!result) {
-      return res.status(404).json({ message: 'Demo test result not found' });
-    }
-
-    // Create question map for proper matching
-    const questionMap = {};
-    if (result.test.questions && Array.isArray(result.test.questions)) {
-      result.test.questions.forEach(question => {
-        questionMap[question.uid] = question;
-      });
-    }
-
-    const detailedResult = {
-      _id: result._id,
-      test: {
-        _id: result.test._id,
-        title: result.test.title,
-        description: result.test.description,
-        duration: result.test.duration,
-        marksPerQuestion: result.test.marksPerQuestion,
-        negativeMarks: result.test.negativeMarks,
-        totalMarks: result.test.totalMarks
-      },
-      student: result.student,
-      score: result.score,
-      totalMarks: result.totalMarks,
-      percentage: ((result.score / result.totalMarks) * 100).toFixed(2),
-      timeTaken: result.timeTaken,
-      submittedAt: result.submittedAt,
-      summary: result.summary,
-      answers: result.answers.map(answer => {
-        const question = questionMap[answer.questionUid];
-        return {
-          question: question ? question.question : { english: 'Question not found', hindi: '' },
-          description: question ? (question.description || { english: '', hindi: '' }) : { english: '', hindi: '' },
-          options: question ? question.options : [],
-          tags: question && question.tags ? question.tags.map(tag => tag.tag) : [],
-          studentAnswer: answer.selectedOption,
-          correctAnswer: answer.correctAnswer,
-          isCorrect: answer.isCorrect,
-          marksObtained: answer.marksObtained
-        };
-      })
-    };
-
-    res.json(detailedResult);
-  } catch (error) {
-    console.error('Get student demo test result error:', error);
-    handleError(res, error, messages.en.serverError);
-  }
-};
-
-const getStudentDemoResults = async (req, res) => {
-  try {
-    const results = await DemoResultService.getStudentDemoResults(req.user._id);
-    
-    // Sort by submission date (most recent first)
-    results.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-
-    res.json(results);
-  } catch (error) {
-    console.error('Get student demo results error:', error);
-    handleError(res, error, messages.en.serverError);
-  }
-};
-
 module.exports = {
   createDemoTest,
   getDemoTests,
@@ -322,7 +251,5 @@ module.exports = {
   getAvailableDemoTests,
   getDemoTestById,
   submitDemoTest,
-  checkDemoTestAvailability,
-  getStudentDemoTestResult,
-  getStudentDemoResults
+  checkDemoTestAvailability
 };
