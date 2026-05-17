@@ -9,7 +9,9 @@ const {
   getAvailableDemoTests,
   getDemoTestById,
   submitDemoTest,
-  checkDemoTestAvailability
+  checkDemoTestAvailability,
+  getStudentDemoTestResult,
+  getStudentDemoResults
 } = require('../controllers/demoTestController');
 const { auth, studentAuth, adminAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimiter');
@@ -29,5 +31,7 @@ router.get('/available', getAvailableDemoTests);
 router.get('/:id', getDemoTestById);
 router.post('/:id/submit', studentAuth, submitDemoTest);
 router.get('/:id/check-availability', checkDemoTestAvailability);
+router.get('/:id/result', studentAuth, getStudentDemoTestResult);
+router.get('/student/results', studentAuth, getStudentDemoResults);
 
 module.exports = router;

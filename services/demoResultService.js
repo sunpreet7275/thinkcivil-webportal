@@ -4,89 +4,110 @@ const Question = require('../models/Question');
 
 class DemoResultService {
   static async submitDemoTest(testId, studentId, answers, timeTaken) {
-    // Get test with populated questions
-    const test = await DemoTest.findById(testId)
-      .populate({
-        path: 'questions',
-        select: 'uid correctAnswer'
-      });
-    
-    if (!test) throw new Error('Demo test not found');
-
-    // Validate that we have questions populated
-    if (!test.questions || test.questions.length === 0) {
-      throw new Error('No questions found for this demo test');
-    }
-
-    // Validate that answers count matches questions count
-    if (answers.length !== test.questionUids.length) {
-      throw new Error(`Expected ${test.questionUids.length} answers, but got ${answers.length}`);
-    }
-
-    let score = 0;
-    let correctAnswers = 0;
-    let wrongAnswers = 0;
-    let unattempted = 0;
-
-    // Create a map of questions by UID for easy lookup
-    const questionMap = {};
-    test.questions.forEach(question => {
-      questionMap[question.uid] = question;
+  console.log('Submitting demo test:', { testId, studentId, answersCount: answers.length, timeTaken });
+  
+  // Get test with populated questions
+  const test = await DemoTest.findById(testId)
+    .populate({
+      path: 'questions',
+      select: 'uid correctAnswer'
     });
+  
+  if (!test) throw new Error('Demo test not found');
 
-    const evaluatedAnswers = answers.map((answer, index) => {
-      const questionUid = test.questionUids[index];
-      const question = questionMap[questionUid];
-      
-      if (!question) {
-        throw new Error(`Question with UID ${questionUid} not found`);
-      }
+  console.log('Test found:', { title: test.title, questionsCount: test.questions.length });
 
-      // Convert to number for consistent comparison
-      const selectedOption = parseInt(answer.selectedOption);
-      const correctAnswer = parseInt(question.correctAnswer);
-      
-      // Check if question was attempted (-1 means unattempted)
-      const isAttempted = !isNaN(selectedOption) && selectedOption >= 0 && selectedOption <= 3;
-      
-      const isCorrect = isAttempted && (selectedOption === correctAnswer);
-      
-      let marksForThisQuestion = 0;
-      
-      if (isAttempted) {
-        if (isCorrect) {
-          marksForThisQuestion = test.marksPerQuestion;
-          correctAnswers++;
-        } else {
-          marksForThisQuestion = -test.negativeMarks;
-          wrongAnswers++;
-        }
+  // Validate that we have questions populated
+  if (!test.questions || test.questions.length === 0) {
+    throw new Error('No questions found for this demo test');
+  }
+
+  // Validate that answers count matches questions count
+  if (answers.length !== test.questionUids.length) {
+    throw new Error(`Expected ${test.questionUids.length} answers, but got ${answers.length}`);
+  }
+
+  let score = 0;
+  let correctAnswers = 0;
+  let wrongAnswers = 0;
+  let unattempted = 0;
+
+  // Create a map of questions by UID for easy lookup
+  const questionMap = {};
+  test.questions.forEach(question => {
+    questionMap[question.uid] = question;
+  });
+
+  const evaluatedAnswers = answers.map((answer, index) => {
+    const questionUid = test.questionUids[index];
+    const question = questionMap[questionUid];
+    
+    if (!question) {
+      throw new Error(`Question with UID ${questionUid} not found`);
+    }
+
+    // Convert to number for consistent comparison
+    const selectedOption = parseInt(answer.selectedOption);
+    const correctAnswer = parseInt(question.correctAnswer);
+    
+    // Check if question was attempted (-1 means unattempted)
+    const isAttempted = !isNaN(selectedOption) && selectedOption >= 0 && selectedOption <= 3;
+    
+    const isCorrect = isAttempted && (selectedOption === correctAnswer);
+    
+    let marksForThisQuestion = 0;
+    
+    if (isAttempted) {
+      if (isCorrect) {
+        marksForThisQuestion = test.marksPerQuestion;
+        correctAnswers++;
       } else {
-        unattempted++;
+        marksForThisQuestion = -test.negativeMarks;
+        wrongAnswers++;
       }
-      
-      score += marksForThisQuestion;
-      
-      return {
-        questionUid: questionUid,
-        questionIndex: index,
-        selectedOption: answer.selectedOption,
-        isCorrect,
-        isAttempted,
-        correctAnswer: question.correctAnswer,
-        marksObtained: parseFloat(marksForThisQuestion.toFixed(2))
-      };
-    });
-
-    // Ensure score doesn't go below zero
-    score = Math.max(0, parseFloat(score.toFixed(2)));
+    } else {
+      unattempted++;
+    }
     
-    const totalMarks = test.totalMarks;
-    const percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0;
+    score += marksForThisQuestion;
+    
+    return {
+      questionUid: questionUid,
+      questionIndex: index,
+      selectedOption: answer.selectedOption,
+      isCorrect,
+      isAttempted,
+      correctAnswer: question.correctAnswer,
+      marksObtained: parseFloat(marksForThisQuestion.toFixed(2))
+    };
+  });
 
-    const result = await DemoResult.create({
+  // Ensure score doesn't go below zero
+  score = Math.max(0, parseFloat(score.toFixed(2)));
+  
+  const totalMarks = test.totalMarks;
+  const percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0;
+
+  // Get the next attempt number
+  const previousAttempts = await DemoResult.countDocuments({
+    test: testId,
+    student: studentId
+  });
+  
+  const attemptNumber = previousAttempts + 1;
+
+  // Use findOneAndUpdate with upsert to create or update
+  const result = await DemoResult.findOneAndUpdate(
+    // Filter: find by test and student
+    { 
+      test: testId, 
+      student: studentId 
+    },
+    // Update: set all fields
+    {
       test: testId,
       student: studentId,
+      attemptNumber,
       answers: evaluatedAnswers,
       score,
       totalMarks,
@@ -101,23 +122,39 @@ class DemoResultService {
         marksPerQuestion: test.marksPerQuestion,
         negativeMarks: test.negativeMarks
       }
-    });
+    },
+    { 
+      upsert: true,           // Create if doesn't exist
+      new: true,              // Return the updated document
+      setDefaultsOnInsert: true,
+      runValidators: true      // Run schema validators
+    }
+  );
 
-    return { 
-      result, 
-      score, 
-      totalMarks, 
-      percentage,
-      summary: {
-        totalQuestions: test.questionUids.length,
-        correctAnswers,
-        wrongAnswers,
-        unattempted,
-        marksPerQuestion: parseFloat(test.marksPerQuestion.toFixed(2)),
-        negativeMarks: parseFloat(test.negativeMarks.toFixed(2))
-      }
-    };
-  }
+  console.log('Result saved:', { 
+    resultId: result._id, 
+    score, 
+    totalMarks, 
+    percentage,
+    attemptNumber 
+  });
+
+  return { 
+    result, 
+    score, 
+    totalMarks, 
+    percentage,
+    attemptNumber,
+    summary: {
+      totalQuestions: test.questionUids.length,
+      correctAnswers,
+      wrongAnswers,
+      unattempted,
+      marksPerQuestion: parseFloat(test.marksPerQuestion.toFixed(2)),
+      negativeMarks: parseFloat(test.negativeMarks.toFixed(2))
+    }
+  };
+}
 
   static async getStudentDemoResults(studentId) {
     return await DemoResult.find({ student: studentId })
@@ -131,24 +168,56 @@ class DemoResultService {
       .sort({ score: -1, submittedAt: 1 });
   }
 
-  static async getStudentDemoTestResult(testId, studentId) {
-    // Get the most recent result for this test and student
-    return await DemoResult.findOne({ test: testId, student: studentId })
+ static async getStudentDemoTestResult(testId, studentId) {
+  try {
+    // First, get the result
+    const result = await DemoResult.findOne({ test: testId, student: studentId })
       .sort({ submittedAt: -1 })
+      .populate('student', 'fullName email')
+      .lean();
+
+    if (!result) {
+      return null;
+    }
+
+    // Then, get the test with questions - use exec() for more control
+    const test = await DemoTest.findById(testId)
       .populate({
-        path: 'test',
-        select: 'title description duration marksPerQuestion negativeMarks questionUids',
+        path: 'questions',
+        select: 'uid question description options correctAnswer tags',
         populate: {
-          path: 'questions',
-          select: 'uid question description options correctAnswer tags',
-          populate: {
-            path: 'tags',
-            select: 'tag'
-          }
+          path: 'tags',
+          select: 'tag'
         }
       })
-      .populate('student', 'fullName email');
+      .lean()
+      .exec();
+
+    if (!test) {
+      return null;
+    }
+
+    // Manually ensure questions are in the test object
+    console.log('Test questions before assign:', test.questions ? test.questions.length : 0);
+
+    // Create a new object to avoid any reference issues
+    const resultWithTest = {
+      ...result,
+      test: {
+        ...test,
+        // Explicitly set questions to ensure they're there
+        questions: test.questions || []
+      }
+    };
+
+    console.log('Final test questions count:', resultWithTest.test.questions.length);
+
+    return resultWithTest;
+  } catch (error) {
+    console.error('Error in getStudentDemoTestResult:', error);
+    throw error;
   }
+}
 
   static async getStudentResultsForTests(studentId, testIds) {
     return await DemoResult.find({ 

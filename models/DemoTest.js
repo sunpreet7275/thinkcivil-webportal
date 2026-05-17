@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const demoTestschema = new mongoose.Schema({
+const demoTestSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
@@ -52,7 +52,7 @@ const demoTestschema = new mongoose.Schema({
 });
 
 // Virtual for total marks
-demoTestschema.virtual('totalMarks').get(function() {
+demoTestSchema.virtual('totalMarks').get(function() {
   if (!this.questionUids || !Array.isArray(this.questionUids)) {
     return 0;
   }
@@ -60,7 +60,7 @@ demoTestschema.virtual('totalMarks').get(function() {
 });
 
 // Virtual to populate questions
-demoTestschema.virtual('questions', {
+demoTestSchema.virtual('questions', {
   ref: 'Question',
   localField: 'questionUids',
   foreignField: 'uid',
@@ -68,8 +68,8 @@ demoTestschema.virtual('questions', {
 });
 
 // Indexes
-demoTestschema.index({ isActive: 1 });
-demoTestschema.index({ createdBy: 1 });
-demoTestschema.index({ questionUids: 1 });
+demoTestSchema.index({ isActive: 1 });
+demoTestSchema.index({ createdBy: 1 });
+demoTestSchema.index({ questionUids: 1 });
 
-module.exports = mongoose.model('DemoTest', demoTestschema);
+module.exports = mongoose.model('DemoTest', demoTestSchema);

@@ -12,7 +12,11 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, JWT.SECRET);
-    const user = await User.findById(decoded.userId).select('-password');
+    
+    // Support both userId and id formats
+    const userId = decoded.userId || decoded.id;
+    
+    const user = await User.findById(userId).select('-password');
     
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });
@@ -26,6 +30,10 @@ const auth = async (req, res, next) => {
 };
 
 const adminAuth = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'User not authenticated' });
+  }
+  
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Access denied. Admin only.' });
   }
@@ -39,4 +47,14 @@ const studentAuth = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminAuth, studentAuth };
+// Add aliases for career API compatibility without breaking existing code
+const protect = auth;
+const admin = adminAuth;
+
+module.exports = { 
+  auth, 
+  adminAuth, 
+  studentAuth,
+  protect,  // Alias for career API
+  admin     // Alias for career API
+};

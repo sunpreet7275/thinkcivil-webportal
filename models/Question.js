@@ -31,6 +31,7 @@ const questionSchema = new mongoose.Schema({
   uid: {
     type: String,
     unique: true,
+    index: true,
     default: () => uuidv4()
   },
   question: {

@@ -35,8 +35,9 @@ const getMenuItems = (user) => {
       { name: 'Live Content', path: '/live-content-admin', icon: 'live_tv' },
       { name: 'Demo Test', path: '/demo-test-admin', icon: 'quiz' },
       { name: 'Manage Quiz', path: '/quizzes', icon: 'fact_check' },
-      { name: 'Manage Coupon', path: '/manage-coupon', icon: 'fact_check' }
-
+      { name: 'Manage Coupon', path: '/manage-coupon', icon: 'fact_check' },
+      { name: 'Manage Program', path: '/manage-program', icon: 'fact_check' },
+      { name: 'Manage Answer Writing', path: '/answer-writing', icon: 'fact_check' }
 
 
 
@@ -49,7 +50,7 @@ const getMenuItems = (user) => {
       case USER_TYPES.FRESH:
         return [
           ...commonItems,
-          { name: 'Demo Test', path: '/demo-test', icon: 'assignment' },
+          { name: 'Demo Test', path: '/demo-tests', icon: 'assignment' },
 
           // { name: 'My Profile', path: '/profile', icon: 'person' },
           // { name: 'Upgrade Plan', path: '/upgrade', icon: 'upgrade' }
@@ -71,13 +72,16 @@ const getMenuItems = (user) => {
       case USER_TYPES.MAINS:
         return [
           ...commonItems,
-          { name: 'Mains Tests', path: '/mains-tests', icon: 'description' },
-          { name: 'Answer Writing', path: '/answer-writing', icon: 'edit_note' },
-          { name: 'Mains Results', path: '/mains-results', icon: 'assignment' },
-          { name: 'Test History', path: '/test-history', icon: 'history' },
+          { name: 'Daily Answer Writing', path: '/student-answer-writing', icon: 'description' },
+          { name: 'DAW Evaluation', path: '/mains-results', icon: 'assignment' },
           { name: 'Study Materials', path: '/materials', icon: 'library_books' },
-          { name: 'Essay Practice', path: '/essay-practice', icon: 'create' },
-          { name: 'Optional Subject', path: '/optional', icon: 'menu_book' }
+          { name: 'Mentorship Sessions', path: '/pre-session', icon: 'groups' },
+          { name: 'Live Tests', path: '/mains-tests', icon: 'description' },
+
+          // { name: 'Answer Writing', path: '/answer-writing', icon: 'edit_note' },
+          // { name: 'Test History', path: '/test-history', icon: 'history' },
+          // { name: 'Essay Practice', path: '/essay-practice', icon: 'create' },
+          // { name: 'Optional Subject', path: '/optional', icon: 'menu_book' }
         ];
 
       case USER_TYPES.COMBO:

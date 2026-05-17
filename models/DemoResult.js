@@ -11,6 +11,10 @@ const demoResultSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  attemptNumber: {
+    type: Number,
+    default: 1
+  },
   answers: [{
     questionUid: {
       type: String,
@@ -75,9 +79,10 @@ const demoResultSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for better performance - Note: Not unique because students can retake demo tests
-demoResultSchema.index({ test: 1, student: 1 });
-demoResultSchema.index({ student: 1, submittedAt: -1 });
+// Create indexes for better query performance
+// Remove the unique constraint on test+student+attemptNumber since we're only keeping one per student
+demoResultSchema.index({ test: 1, student: 1 }); // No longer unique
 demoResultSchema.index({ submittedAt: -1 });
+demoResultSchema.index({ student: 1, submittedAt: -1 });
 
 module.exports = mongoose.model('DemoResult', demoResultSchema);

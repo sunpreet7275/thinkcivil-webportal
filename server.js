@@ -97,8 +97,20 @@ app.use('/api/simpleNews', require('./routes/simpleNews'));
 app.use('/api/live-content', require('./routes/liveContent'));
 
 app.use('/api/demo-tests', require('./routes/demoTest'));
+app.use('/api/demoResults', require('./routes/demoResults'));
 
 app.use('/api/quizzes', require('./routes/quiz'));
+// Add this with your other route declarations
+app.use('/api/programs', require('./routes/programs'));
+
+// Add this with your other routes
+app.use('/api', require('./routes/batches'));
+
+app.use('/api/answer-writing', require('./routes/answerWriting'));
+
+
+
+
 
 app.post('/api/create-order', async (req, res) => {
   try {
@@ -254,8 +266,8 @@ app.get('/api/debug/razorpay-keys', (req, res) => {
 });
 
 
-
-
+app.use('/api/module', require('./routes/module'));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // Error handling middleware
