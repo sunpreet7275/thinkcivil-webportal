@@ -1,6 +1,7 @@
 const AnswerWriting = require('../models/AnswerWriting');
 const StudentAnswerSubmission = require('../models/StudentAnswerSubmission');
 const { handleError } = require('../middleware/errorHandler');
+const { deleteFromR2 } = require('../config/r2');
 
 // Helper function to get bilingual content
 const getBilingualContent = (item, lang) => {
@@ -105,7 +106,6 @@ const createAnswerWriting = async (req, res) => {
 // @desc    Get all answer writing exercises (admin view)
 // @route   GET /api/answer-writing/admin
 // @access  Private/Admin
-// In answerWritingController.js
 const getAllAnswerWritingAdmin = async (req, res) => {
   try {
     const { search, status, fromDate, toDate, lang = 'en' } = req.query;
@@ -127,7 +127,6 @@ const getAllAnswerWritingAdmin = async (req, res) => {
       query.isActive = false;
     }
     
-    // Date range filter
     if (fromDate || toDate) {
       query.startDateTime = {};
       if (fromDate) {
@@ -160,54 +159,40 @@ const getAllAnswerWritingAdmin = async (req, res) => {
 // @desc    Get available exercises for students
 // @route   GET /api/answer-writing/available
 // @access  Private (Student)
-// @desc    Get available exercises for students
-// @route   GET /api/answer-writing/available
-// @access  Private (Student)
 const getAvailableExercises = async (req, res) => {
   try {
     const { lang = 'en' } = req.query;
     const now = new Date();
     
-    // Get user's submissions first to know which exercises are already submitted
     const userSubmissions = await StudentAnswerSubmission.find({
       studentId: req.user._id
     });
     
     const submittedExerciseIds = userSubmissions.map(sub => sub.answerWritingId.toString());
     
-    // Find exercises that are:
-    // 1. Active
-    // 2. Not expired (endDateTime >= now)
-    // 3. Not already submitted by the student
     const exercises = await AnswerWriting.find({ 
       isActive: true,
       endDateTime: { $gte: now },
-      _id: { $nin: submittedExerciseIds } // Exclude already submitted exercises
+      _id: { $nin: submittedExerciseIds }
     })
       .select('-createdBy -updatedBy -__v')
       .sort({ order: -1, startDateTime: 1 });
 
-    // Process each exercise based on time restrictions
     const exercisesWithStatus = exercises.map(exercise => {
       const exerciseObj = getBilingualContent(exercise, lang);
       
-      // Check if exercise is available (between start and end date)
       const isAvailable = exercise.isAvailable;
       const isUpcoming = exercise.isUpcoming;
       const isExpired = exercise.isExpired;
       
-      // IMPORTANT: Only show questions if exercise is currently available
       if (isAvailable) {
-        // Show full questions and PDF links
         exerciseObj.questions = exercise.questions;
         exerciseObj.questionPaperPDF = exercise.questionPaperPDF;
         exerciseObj.questionPaperPDFHi = exercise.questionPaperPDFHi;
       } else {
-        // Hide questions and PDF links if not within time window
         exerciseObj.questions = [];
         exerciseObj.questionPaperPDF = '';
         exerciseObj.questionPaperPDFHi = '';
-        // Add a message for students
         exerciseObj.message = isUpcoming 
           ? (lang === 'hi' ? 'प्रश्न ' + new Date(exercise.startDateTime).toLocaleString() + ' को उपलब्ध होंगे' : 'Questions will be available on ' + new Date(exercise.startDateTime).toLocaleString())
           : (lang === 'hi' ? 'यह अभ्यास समाप्त हो चुका है' : 'This exercise has expired');
@@ -365,10 +350,15 @@ const deleteAnswerWriting = async (req, res) => {
       });
     }
 
-    // Delete all submissions for this exercise
-    const deletedSubmissions = await StudentAnswerSubmission.deleteMany({ answerWritingId: exercise._id });
+    // Delete all submissions and their files from R2
+    const submissions = await StudentAnswerSubmission.find({ answerWritingId: exercise._id });
+    for (const submission of submissions) {
+      for (const answer of submission.answers) {
+        await deleteFromR2(answer.answerPDF);
+      }
+    }
     
-    // Delete the exercise
+    const deletedSubmissions = await StudentAnswerSubmission.deleteMany({ answerWritingId: exercise._id });
     await exercise.deleteOne();
 
     res.json({
@@ -418,14 +408,22 @@ const toggleExerciseStatus = async (req, res) => {
   }
 };
 
-// @desc    Submit answers for an exercise (student)
+// @desc    Submit answers for an exercise (student) with R2 file upload
 // @route   POST /api/answer-writing/:id/submit
 // @access  Private (Student)
 const submitAnswers = async (req, res) => {
   try {
     const { id } = req.params;
-    const { answers } = req.body;
+    const { language } = req.body;
     const studentId = req.user._id;
+    const answerFile = req.file;
+
+    if (!answerFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload your answer PDF file'
+      });
+    }
 
     const exercise = await AnswerWriting.findById(id);
     if (!exercise || !exercise.isActive) {
@@ -455,21 +453,40 @@ const submitAnswers = async (req, res) => {
       });
     }
 
-    if (!answers || !answers.length) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please submit answers for at least one question'
-      });
-    }
-
     const isLate = now > exercise.endDateTime;
     
-    const processedAnswers = answers.map(answer => ({
-      questionId: answer.questionId,
-      answerPDF: answer.answerPDF,
-      language: answer.language || 'en',
+    // Get the file URL from multer-s3
+    let fileUrl = answerFile.location;
+    console.log('Original R2 URL:', fileUrl);
+    
+    // Store as public URL format
+    if (process.env.R2_PUBLIC_URL) {
+      // Extract the key correctly
+      let key = '';
+      if (fileUrl.includes('.r2.cloudflarestorage.com/')) {
+        const parts = fileUrl.split('.r2.cloudflarestorage.com/');
+        if (parts[1]) {
+          let path = parts[1];
+          // Remove bucket name from the path
+          if (path.startsWith(`${process.env.R2_BUCKET_NAME}/`)) {
+            path = path.substring(process.env.R2_BUCKET_NAME.length + 1);
+          }
+          key = path;
+        }
+      }
+      
+      if (key) {
+        fileUrl = `${process.env.R2_PUBLIC_URL}/${key}`;
+        console.log('Stored as public URL:', fileUrl);
+      }
+    }
+    
+    const processedAnswers = [{
+      questionId: exercise._id,
+      answerPDF: fileUrl,
+      language: language || 'en',
       submittedAt: now
-    }));
+    }];
 
     const submission = new StudentAnswerSubmission({
       answerWritingId: id,
@@ -477,7 +494,7 @@ const submitAnswers = async (req, res) => {
       answers: processedAnswers,
       isLate,
       submittedAt: now,
-      submissionLanguage: answers[0]?.language || 'en'
+      submissionLanguage: language || 'en'
     });
 
     await submission.save();
@@ -485,7 +502,10 @@ const submitAnswers = async (req, res) => {
     res.status(201).json({
       success: true,
       message: isLate ? 'Answers submitted successfully (Late Submission)' : 'Answers submitted successfully',
-      data: submission
+      data: {
+        submissionId: submission._id,
+        fileUrl: fileUrl
+      }
     });
 
   } catch (error) {
@@ -497,29 +517,34 @@ const submitAnswers = async (req, res) => {
 // @desc    Get student's submissions
 // @route   GET /api/answer-writing/my-submissions
 // @access  Private (Student)
-// @desc    Get student's submissions
-// @route   GET /api/answer-writing/my-submissions
-// @access  Private (Student)
 const getMySubmissions = async (req, res) => {
   try {
     const { lang = 'en' } = req.query;
+    const { getPresignedUrl } = require('../config/r2');
+
     const submissions = await StudentAnswerSubmission.find({ studentId: req.user._id })
       .populate('answerWritingId', 'name nameHi description descriptionHi questions questionPaperPDF questionPaperPDFHi startDateTime endDateTime')
       .sort({ submittedAt: -1 });
 
-    const data = submissions.map(sub => {
+    const data = await Promise.all(submissions.map(async (sub) => {
       const subObj = sub.toObject();
       const exercise = subObj.answerWritingId;
       
+      // Generate presigned URLs for answers
+      for (let i = 0; i < subObj.answers.length; i++) {
+        const answer = subObj.answers[i];
+        if (answer.answerPDF) {
+          answer.answerPDF = await getPresignedUrl(answer.answerPDF);
+        }
+      }
+      
       if (exercise) {
-        // Process bilingual content for exercise
         if (lang === 'hi') {
           exercise.name = exercise.nameHi || exercise.name;
           exercise.description = exercise.descriptionHi || exercise.description;
           exercise.questionPaperPDF = exercise.questionPaperPDFHi || exercise.questionPaperPDF;
         }
         
-        // Add full question details to each answer
         if (exercise.questions && exercise.questions.length) {
           subObj.answers = subObj.answers.map(answer => {
             const question = exercise.questions.find(q => q._id.toString() === answer.questionId.toString());
@@ -528,7 +553,6 @@ const getMySubmissions = async (req, res) => {
                 ? (question.questionTextHi || question.questionText) 
                 : question.questionText;
               answer.questionTextHi = question.questionTextHi;
-              answer.fullQuestion = question; // Include full question object if needed
             }
             return answer;
           });
@@ -536,7 +560,7 @@ const getMySubmissions = async (req, res) => {
       }
       
       return subObj;
-    });
+    }));
 
     res.json({
       success: true,
@@ -556,15 +580,31 @@ const getMySubmissions = async (req, res) => {
 const getExerciseSubmissions = async (req, res) => {
   try {
     const { id } = req.params;
+    const { getPresignedUrl } = require('../config/r2');
 
     const submissions = await StudentAnswerSubmission.find({ answerWritingId: id })
       .populate('studentId', 'fullName email phone')
       .sort({ submittedAt: -1 });
 
+    // Generate presigned URLs for each submission
+    const submissionsWithUrls = await Promise.all(submissions.map(async (submission) => {
+      const subObj = submission.toObject();
+      
+      for (let i = 0; i < subObj.answers.length; i++) {
+        const answer = subObj.answers[i];
+        if (answer.answerPDF) {
+          // Generate presigned URL for each answer
+          answer.answerPDF = await getPresignedUrl(answer.answerPDF);
+        }
+      }
+      
+      return subObj;
+    }));
+
     res.json({
       success: true,
-      count: submissions.length,
-      data: submissions
+      count: submissionsWithUrls.length,
+      data: submissionsWithUrls
     });
 
   } catch (error) {

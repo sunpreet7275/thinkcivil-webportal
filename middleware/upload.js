@@ -1,40 +1,54 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 
-const uploadDir = 'uploads/resumes';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure upload directories exist
+const createUploadDirs = () => {
+  const dirs = [
+    path.join(__dirname, '../uploads/answer-sheets'),
+    path.join(__dirname, '../uploads/temp')
+  ];
+  
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+};
 
+createUploadDirs();
+
+// Configure storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+    cb(null, path.join(__dirname, '../uploads/answer-sheets'));
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `resume-${uniqueSuffix}${ext}`);
+    const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
   }
 });
 
+// File filter
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
-  const ext = path.extname(file.originalname).toLowerCase();
-  
-  if (allowedTypes.includes(ext)) {
+  if (file.mimetype === 'application/pdf') {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only PDF, DOC, DOCX, TXT, and RTF files are allowed.'), false);
+    cb(new Error('Only PDF files are allowed'), false);
   }
 };
 
+// Create multer instance
 const upload = multer({
   storage: storage,
-  fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024
-  }
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: fileFilter
 });
 
-module.exports = upload;
+// Middleware for single file upload
+const uploadAnswerSheet = upload.single('answerPDF');
+
+module.exports = { uploadAnswerSheet, upload };

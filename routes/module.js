@@ -1,30 +1,55 @@
-// routes/moduleRoutes.js
+// routes/module.js
 const express = require('express');
 const router = express.Router();
 const {
+  // Module operations
   createModule,
-  getModules,
   updateModule,
+  getModules,
   deleteModule,
   toggleModuleStatus,
+  updateModuleOrder,
   getAllActiveModules,
-  updateModuleOrder
+  // Directory operations
+  createFolder,
+  createFile,
+  getDirectoryContents,
+  getItem,
+  updateFile,
+  renameFolder,
+  deleteDirectoryItem,
+  // Public APIs
+  getPublicDirectoryTree,
+  getPublicModuleTree,
+  getPublicFile
 } = require('../controllers/moduleController');
 const { auth, adminAuth } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimiter');
 
-// Public route (no auth required)
+// ============ Public Routes (No Auth Required) ============
 router.get('/public', getAllActiveModules);
+router.get('/public/directory', getPublicDirectoryTree);
+router.get('/public/module-tree/:id', getPublicModuleTree);
+router.get('/public/file/:id', getPublicFile);
 
-// Apply authentication to all routes after public
+// ============ Admin Routes (require auth) ============
 router.use(auth, apiLimiter);
 
-// Admin routes - no multer needed anymore
+// Module CRUD
 router.post('/', adminAuth, createModule);
-router.get('/admin', adminAuth, getModules);
+router.get('/admin', adminAuth, getModules);  // Keep as /admin for existing code
 router.put('/:id', adminAuth, updateModule);
 router.delete('/:id', adminAuth, deleteModule);
 router.patch('/:id/toggle-status', adminAuth, toggleModuleStatus);
 router.patch('/:id/order', adminAuth, updateModuleOrder);
+
+// Directory operations
+router.post('/folders', adminAuth, createFolder);
+router.post('/files', adminAuth, createFile);
+router.get('/directory/:parentId', adminAuth, getDirectoryContents);
+router.get('/item/:id', adminAuth, getItem);
+router.put('/files/:id', adminAuth, updateFile);
+router.put('/folders/:id', adminAuth, renameFolder);
+router.delete('/directory/:id', adminAuth, deleteDirectoryItem);
 
 module.exports = router;

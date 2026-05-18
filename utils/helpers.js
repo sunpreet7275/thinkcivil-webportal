@@ -36,6 +36,7 @@ const getMenuItems = (user) => {
       { name: 'Demo Test', path: '/demo-test-admin', icon: 'quiz' },
       { name: 'Manage Quiz', path: '/quizzes', icon: 'fact_check' },
       { name: 'Manage Coupon', path: '/manage-coupon', icon: 'fact_check' },
+      { name: 'Study Module', path: '/study-module', icon: 'fact_check' },
       { name: 'Manage Program', path: '/manage-program', icon: 'fact_check' },
       { name: 'Manage Answer Writing', path: '/answer-writing', icon: 'fact_check' }
 
