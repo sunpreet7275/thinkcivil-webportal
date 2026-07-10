@@ -1,5 +1,10 @@
 // controllers/moduleController.js
 const Module = require('../models/Module');
+const Quiz = require('../models/Quiz');
+const QuizSubmission = require('../models/QuizSubmission');
+const ModuleTest = require('../models/ModuleTest');
+const ModuleTestSubmission = require('../models/ModuleTestSubmission');
+const Question = require('../models/Question');
 const { handleError } = require('../middleware/errorHandler');
 const messages = require('../utils/messages');
 
@@ -157,9 +162,8 @@ const updateModuleOrder = async (req, res) => {
   }
 };
 
-// ============ DIRECTORY OPERATIONS (NEW) ============
+// ============ DIRECTORY OPERATIONS ============
 
-// Create Folder inside Module or Folder
 const createFolder = async (req, res) => {
   try {
     const { nameEnglish, nameHindi, parentId } = req.body;
@@ -171,7 +175,6 @@ const createFolder = async (req, res) => {
       });
     }
 
-    // Check if parent exists
     const parent = await Module.findOne({ 
       _id: parentId, 
       createdBy: userId,
@@ -182,7 +185,6 @@ const createFolder = async (req, res) => {
       return res.status(404).json({ message: 'Parent not found' });
     }
 
-    // Check if folder already exists in this parent
     const existingFolder = await Module.findOne({
       parent: parentId,
       'name.english': nameEnglish,
@@ -217,7 +219,6 @@ const createFolder = async (req, res) => {
   }
 };
 
-// Create File inside Folder
 const createFile = async (req, res) => {
   try {
     const { nameEnglish, nameHindi, parentId, fileLink, fileDescription } = req.body;
@@ -229,7 +230,6 @@ const createFile = async (req, res) => {
       });
     }
 
-    // Check if parent exists
     const parent = await Module.findOne({ 
       _id: parentId, 
       createdBy: userId,
@@ -240,7 +240,6 @@ const createFile = async (req, res) => {
       return res.status(404).json({ message: 'Parent not found' });
     }
 
-    // Check if file already exists
     const existingFile = await Module.findOne({
       parent: parentId,
       'name.english': nameEnglish,
@@ -252,7 +251,6 @@ const createFile = async (req, res) => {
       return res.status(409).json({ message: 'File already exists' });
     }
 
-    // Determine file type
     let fileType = 'other';
     const nameLower = nameEnglish.toLowerCase();
     
@@ -294,7 +292,6 @@ const createFile = async (req, res) => {
   }
 };
 
-// Get Directory Contents
 const getDirectoryContents = async (req, res) => {
   try {
     const { parentId } = req.params;
@@ -318,7 +315,6 @@ const getDirectoryContents = async (req, res) => {
   }
 };
 
-// Get Single Item by ID
 const getItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -337,7 +333,6 @@ const getItem = async (req, res) => {
   }
 };
 
-// Update File
 const updateFile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -363,7 +358,6 @@ const updateFile = async (req, res) => {
     if (fileLink) {
       file.fileLink = fileLink;
       
-      // Update file type
       const nameLower = nameEnglish || file.name.english;
       if (nameLower.endsWith('.pdf')) {
         file.fileType = 'pdf';
@@ -395,7 +389,6 @@ const updateFile = async (req, res) => {
   }
 };
 
-// Rename Folder
 const renameFolder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -421,7 +414,6 @@ const renameFolder = async (req, res) => {
 
     await folder.save();
 
-    // Update fullPath of all children recursively
     const updateChildrenPaths = async (parentId) => {
       const children = await Module.find({ parent: parentId });
       for (const child of children) {
@@ -445,7 +437,6 @@ const renameFolder = async (req, res) => {
   }
 };
 
-// Delete Directory Item (handles recursive deletion)
 const deleteDirectoryItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -472,7 +463,7 @@ const deleteDirectoryItem = async (req, res) => {
   }
 };
 
-// ============ PUBLIC APIs (For Frontend Display) ============
+// ============ PUBLIC APIs ============
 
 const getAllActiveModules = async (req, res) => {
   try {
@@ -488,7 +479,6 @@ const getAllActiveModules = async (req, res) => {
   }
 };
 
-// Get public directory tree
 const getPublicDirectoryTree = async (req, res) => {
   try {
     const { moduleId, parentId } = req.query;
@@ -513,7 +503,6 @@ const getPublicDirectoryTree = async (req, res) => {
   }
 };
 
-// Get full module tree
 const getPublicModuleTree = async (req, res) => {
   try {
     const { id } = req.params;
@@ -550,7 +539,6 @@ const getPublicModuleTree = async (req, res) => {
   }
 };
 
-// Get public file
 const getPublicFile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -568,6 +556,718 @@ const getPublicFile = async (req, res) => {
   }
 };
 
+// ============ QUIZ INTEGRATION FUNCTIONS ============
+
+const attachQuizToModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quizId, quizSettings } = req.body;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module) {
+      return res.status(404).json({ message: 'Module/Folder not found' });
+    }
+
+    const quiz = await Quiz.findOne({ _id: quizId, createdBy: userId });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    module.quizId = quizId;
+    module.hasQuiz = true;
+    if (quizSettings) {
+      module.quizSettings = { ...module.quizSettings, ...quizSettings };
+    }
+
+    await module.save();
+
+    res.json({
+      message: 'Quiz attached successfully',
+      module: {
+        _id: module._id,
+        hasQuiz: module.hasQuiz,
+        quizId: module.quizId,
+        quizSettings: module.quizSettings
+      }
+    });
+  } catch (error) {
+    console.error('Attach quiz error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const detachQuizFromModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module) {
+      return res.status(404).json({ message: 'Module/Folder not found' });
+    }
+
+    module.quizId = null;
+    module.hasQuiz = false;
+    module.quizSettings = {
+      passingScore: 70,
+      timeLimit: null,
+      allowRetake: false,
+      maxAttempts: 1,
+      showResults: true
+    };
+
+    await module.save();
+
+    res.json({
+      message: 'Quiz detached successfully',
+      module: {
+        _id: module._id,
+        hasQuiz: module.hasQuiz,
+        quizId: module.quizId
+      }
+    });
+  } catch (error) {
+    console.error('Detach quiz error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const getModuleQuiz = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasQuiz: true 
+    });
+    
+    if (!module || !module.quizId) {
+      return res.status(404).json({ message: 'No quiz found for this module' });
+    }
+
+    const quiz = await Quiz.findOne({ 
+      _id: module.quizId, 
+      isActive: true 
+    });
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not available' });
+    }
+
+    const questions = await Question.find({ 
+      uid: { $in: quiz.questionUids },
+      isActive: true 
+    }).select('uid question description options');
+
+    res.json({
+      quiz: {
+        _id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        totalQuestions: questions.length,
+        timeLimit: module.quizSettings.timeLimit,
+        passingScore: module.quizSettings.passingScore,
+        allowRetake: module.quizSettings.allowRetake,
+        questions: questions.map(q => ({
+          uid: q.uid,
+          question: q.question,
+          description: q.description,
+          options: q.options
+        }))
+      },
+      settings: module.quizSettings
+    });
+  } catch (error) {
+    console.error('Get module quiz error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const submitModuleQuiz = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, answers, timeTaken } = req.body;
+
+    if (!name || !email || !phone) {
+      return res.status(400).json({ 
+        message: 'Name, email, and phone are required' 
+      });
+    }
+
+    if (!Array.isArray(answers)) {
+      return res.status(400).json({ message: 'Answers must be an array' });
+    }
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasQuiz: true 
+    });
+    
+    if (!module || !module.quizId) {
+      return res.status(404).json({ message: 'No quiz found for this module' });
+    }
+
+    const quiz = await Quiz.findOne({ _id: module.quizId, isActive: true });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not available' });
+    }
+
+    if (answers.length !== quiz.questionUids.length) {
+      return res.status(400).json({ 
+        message: `Expected ${quiz.questionUids.length} answers, but got ${answers.length}` 
+      });
+    }
+
+    if (!module.quizSettings.allowRetake) {
+      const existingSubmission = await QuizSubmission.findOne({
+        quiz: quiz._id,
+        email: email,
+        moduleId: module._id
+      });
+      
+      if (existingSubmission) {
+        return res.status(400).json({ 
+          message: 'You have already completed this quiz. Retakes are not allowed.' 
+        });
+      }
+    }
+
+    const questions = await Question.find({ 
+      uid: { $in: quiz.questionUids },
+      isActive: true 
+    });
+
+    const questionMap = {};
+    questions.forEach(q => {
+      questionMap[q.uid] = q;
+    });
+
+    let score = 0;
+    let correctAnswers = 0;
+    let wrongAnswers = 0;
+    const questionOverview = [];
+    const evaluatedAnswers = [];
+
+    quiz.questionUids.forEach((questionUid, index) => {
+      const question = questionMap[questionUid];
+      if (!question) {
+        throw new Error(`Question with UID ${questionUid} not found`);
+      }
+
+      const selectedOption = parseInt(answers[index]?.selectedOption);
+      const correctAnswer = parseInt(question.correctAnswer);
+      const isCorrect = selectedOption === correctAnswer;
+
+      if (isCorrect) {
+        score++;
+        correctAnswers++;
+      } else {
+        wrongAnswers++;
+      }
+
+      evaluatedAnswers.push({
+        questionUid,
+        selectedOption,
+        isCorrect
+      });
+
+      questionOverview.push({
+        questionNumber: index + 1,
+        questionUid: question.uid,
+        questionText: question.question,
+        description: question.description,
+        options: question.options?.map((opt, optIndex) => ({
+          optionNumber: optIndex,
+          optionLetter: String.fromCharCode(65 + optIndex),
+          optionText: opt,
+          isCorrect: optIndex === correctAnswer,
+          isSelected: optIndex === selectedOption
+        })),
+        selectedOption: selectedOption,
+        correctOption: correctAnswer,
+        selectedOptionLetter: selectedOption >= 0 ? String.fromCharCode(65 + selectedOption) : null,
+        correctOptionLetter: String.fromCharCode(65 + correctAnswer),
+        isCorrect: isCorrect,
+      });
+    });
+
+    const percentage = (score / quiz.questionUids.length) * 100;
+    const passed = percentage >= module.quizSettings.passingScore;
+
+    const submission = await QuizSubmission.create({
+      quiz: quiz._id,
+      moduleId: module._id,
+      name,
+      email,
+      phone,
+      score,
+      totalQuestions: quiz.questionUids.length,
+      correctAnswers,
+      wrongAnswers,
+      timeTaken,
+      passed,
+      percentage,
+      answers: evaluatedAnswers,
+      questionOverview,
+      submittedAt: new Date()
+    });
+
+    const leaderboard = await QuizSubmission.find({ quiz: quiz._id, moduleId: module._id })
+      .sort({ score: -1, timeTaken: 1 })
+      .select('score timeTaken');
+
+    const rank = leaderboard.findIndex(s => s._id.equals(submission._id)) + 1;
+
+    res.json({
+      message: 'Quiz submitted successfully',
+      score,
+      totalQuestions: quiz.questionUids.length,
+      correctAnswers,
+      wrongAnswers,
+      percentage,
+      passed,
+      rank,
+      totalParticipants: leaderboard.length,
+      timeTaken,
+      submittedAt: submission.submittedAt,
+      passingScore: module.quizSettings.passingScore,
+      showResults: module.quizSettings.showResults,
+      questionOverview: module.quizSettings.showResults ? questionOverview : undefined
+    });
+  } catch (error) {
+    console.error('Submit module quiz error:', error);
+    handleError(res, error, error.message);
+  }
+};
+
+const getModuleQuizSubmissions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module || !module.quizId) {
+      return res.status(404).json({ message: 'No quiz found for this module' });
+    }
+
+    const submissions = await QuizSubmission.find({ 
+      quiz: module.quizId,
+      moduleId: module._id
+    }).sort({ submittedAt: -1 });
+
+    res.json(submissions);
+  } catch (error) {
+    console.error('Get module quiz submissions error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const getModuleQuizLeaderboard = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasQuiz: true 
+    });
+    
+    if (!module || !module.quizId) {
+      return res.status(404).json({ message: 'No quiz found for this module' });
+    }
+
+    const submissions = await QuizSubmission.find({ 
+      quiz: module.quizId,
+      moduleId: module._id
+    })
+    .sort({ score: -1, timeTaken: 1, submittedAt: 1 })
+    .select('name email phone score totalQuestions correctAnswers timeTaken submittedAt passed percentage');
+
+    const leaderboardWithRank = submissions.map((sub, index) => ({
+      rank: index + 1,
+      ...sub.toObject()
+    }));
+
+    res.json({
+      leaderboard: leaderboardWithRank,
+      totalParticipants: submissions.length,
+      quizTitle: (await Quiz.findById(module.quizId))?.title || 'Quiz',
+      passingScore: module.quizSettings.passingScore
+    });
+  } catch (error) {
+    console.error('Get module quiz leaderboard error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+// ============ MODULE TEST INTEGRATION FUNCTIONS ============
+
+const attachModuleTestToModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { moduleTestId, testSettings } = req.body;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module) {
+      return res.status(404).json({ message: 'Module/Folder not found' });
+    }
+
+    const moduleTest = await ModuleTest.findOne({ _id: moduleTestId, createdBy: userId });
+    if (!moduleTest) {
+      return res.status(404).json({ message: 'Module test not found' });
+    }
+
+    module.moduleTestId = moduleTestId;
+    module.hasModuleTest = true;
+    if (testSettings) {
+      module.moduleTestSettings = { ...module.moduleTestSettings, ...testSettings };
+    }
+
+    await module.save();
+
+    res.json({
+      message: 'Module test attached successfully',
+      module: {
+        _id: module._id,
+        hasModuleTest: module.hasModuleTest,
+        moduleTestId: module.moduleTestId,
+        moduleTestSettings: module.moduleTestSettings
+      }
+    });
+  } catch (error) {
+    console.error('Attach module test error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const detachModuleTestFromModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module) {
+      return res.status(404).json({ message: 'Module/Folder not found' });
+    }
+
+    module.moduleTestId = null;
+    module.hasModuleTest = false;
+    module.moduleTestSettings = {
+      passingScore: 70,
+      timeLimit: null,
+      allowRetake: false,
+      maxAttempts: 1,
+      showResults: true
+    };
+
+    await module.save();
+
+    res.json({
+      message: 'Module test detached successfully',
+      module: {
+        _id: module._id,
+        hasModuleTest: module.hasModuleTest,
+        moduleTestId: module.moduleTestId
+      }
+    });
+  } catch (error) {
+    console.error('Detach module test error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const getModuleModuleTest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasModuleTest: true 
+    });
+    
+    if (!module || !module.moduleTestId) {
+      return res.status(404).json({ message: 'No module test found for this module' });
+    }
+
+    const moduleTest = await ModuleTest.findOne({ 
+      _id: module.moduleTestId, 
+      isActive: true 
+    });
+
+    if (!moduleTest) {
+      return res.status(404).json({ message: 'Module test not available' });
+    }
+
+    const questions = await Question.find({ 
+      uid: { $in: moduleTest.questionUids },
+      isActive: true 
+    }).select('uid question description options');
+
+    res.json({
+      moduleTest: {
+        _id: moduleTest._id,
+        title: moduleTest.title,
+        description: moduleTest.description,
+        totalQuestions: questions.length,
+        timeLimit: module.moduleTestSettings?.timeLimit || null,
+        passingScore: module.moduleTestSettings?.passingScore || 70,
+        allowRetake: module.moduleTestSettings?.allowRetake || false,
+        questions: questions.map(q => ({
+          uid: q.uid,
+          question: q.question,
+          description: q.description,
+          options: q.options
+        }))
+      },
+      settings: module.moduleTestSettings || {
+        passingScore: 70,
+        timeLimit: null,
+        allowRetake: false,
+        maxAttempts: 1,
+        showResults: true
+      }
+    });
+  } catch (error) {
+    console.error('Get module module test error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const submitModuleModuleTest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, answers, timeTaken } = req.body;
+
+    if (!name || !email || !phone) {
+      return res.status(400).json({ 
+        message: 'Name, email, and phone are required' 
+      });
+    }
+
+    if (!Array.isArray(answers)) {
+      return res.status(400).json({ message: 'Answers must be an array' });
+    }
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasModuleTest: true 
+    });
+    
+    if (!module || !module.moduleTestId) {
+      return res.status(404).json({ message: 'No module test found for this module' });
+    }
+
+    const moduleTest = await ModuleTest.findOne({ _id: module.moduleTestId, isActive: true });
+    if (!moduleTest) {
+      return res.status(404).json({ message: 'Module test not available' });
+    }
+
+    if (answers.length !== moduleTest.questionUids.length) {
+      return res.status(400).json({ 
+        message: `Expected ${moduleTest.questionUids.length} answers, but got ${answers.length}` 
+      });
+    }
+
+    if (!module.moduleTestSettings?.allowRetake) {
+      const existingSubmission = await ModuleTestSubmission.findOne({
+        moduleTest: moduleTest._id,
+        email: email,
+        moduleId: module._id
+      });
+      
+      if (existingSubmission) {
+        return res.status(400).json({ 
+          message: 'You have already completed this test. Retakes are not allowed.' 
+        });
+      }
+    }
+
+    const questions = await Question.find({ 
+      uid: { $in: moduleTest.questionUids },
+      isActive: true 
+    });
+
+    const questionMap = {};
+    questions.forEach(q => {
+      questionMap[q.uid] = q;
+    });
+
+    let score = 0;
+    let correctAnswers = 0;
+    let wrongAnswers = 0;
+    const questionOverview = [];
+    const evaluatedAnswers = [];
+
+    moduleTest.questionUids.forEach((questionUid, index) => {
+      const question = questionMap[questionUid];
+      if (!question) {
+        throw new Error(`Question with UID ${questionUid} not found`);
+      }
+
+      const selectedOption = parseInt(answers[index]?.selectedOption);
+      const correctAnswer = parseInt(question.correctAnswer);
+      const isCorrect = selectedOption === correctAnswer;
+
+      if (isCorrect) {
+        score++;
+        correctAnswers++;
+      } else {
+        wrongAnswers++;
+      }
+
+      evaluatedAnswers.push({
+        questionUid,
+        selectedOption,
+        isCorrect
+      });
+
+      questionOverview.push({
+        questionNumber: index + 1,
+        questionUid: question.uid,
+        questionText: question.question,
+        description: question.description,
+        options: question.options?.map((opt, optIndex) => ({
+          optionNumber: optIndex,
+          optionLetter: String.fromCharCode(65 + optIndex),
+          optionText: opt,
+          isCorrect: optIndex === correctAnswer,
+          isSelected: optIndex === selectedOption
+        })),
+        selectedOption: selectedOption,
+        correctOption: correctAnswer,
+        selectedOptionLetter: selectedOption >= 0 ? String.fromCharCode(65 + selectedOption) : null,
+        correctOptionLetter: String.fromCharCode(65 + correctAnswer),
+        isCorrect: isCorrect,
+      });
+    });
+
+    const percentage = (score / moduleTest.questionUids.length) * 100;
+    const passingScore = module.moduleTestSettings?.passingScore || 70;
+    const passed = percentage >= passingScore;
+
+    const submission = await ModuleTestSubmission.create({
+      moduleTest: moduleTest._id,
+      moduleId: module._id,
+      name,
+      email,
+      phone,
+      score,
+      totalQuestions: moduleTest.questionUids.length,
+      correctAnswers,
+      wrongAnswers,
+      timeTaken,
+      passed,
+      percentage,
+      answers: evaluatedAnswers,
+      questionOverview,
+      submittedAt: new Date()
+    });
+
+    const leaderboard = await ModuleTestSubmission.find({ 
+      moduleTest: moduleTest._id, 
+      moduleId: module._id 
+    })
+    .sort({ score: -1, timeTaken: 1 })
+    .select('score timeTaken');
+
+    const rank = leaderboard.findIndex(s => s._id.equals(submission._id)) + 1;
+
+    res.json({
+      message: 'Module test submitted successfully',
+      score,
+      totalQuestions: moduleTest.questionUids.length,
+      correctAnswers,
+      wrongAnswers,
+      percentage,
+      passed,
+      rank,
+      totalParticipants: leaderboard.length,
+      timeTaken,
+      submittedAt: submission.submittedAt,
+      passingScore: passingScore,
+      showResults: module.moduleTestSettings?.showResults !== false,
+      questionOverview: module.moduleTestSettings?.showResults !== false ? questionOverview : undefined
+    });
+  } catch (error) {
+    console.error('Submit module module test error:', error);
+    handleError(res, error, error.message);
+  }
+};
+
+const getModuleModuleTestSubmissions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const module = await Module.findOne({ _id: id, createdBy: userId });
+    
+    if (!module || !module.moduleTestId) {
+      return res.status(404).json({ message: 'No module test found for this module' });
+    }
+
+    const submissions = await ModuleTestSubmission.find({ 
+      moduleTest: module.moduleTestId,
+      moduleId: module._id
+    }).sort({ submittedAt: -1 });
+
+    res.json(submissions);
+  } catch (error) {
+    console.error('Get module module test submissions error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+const getModuleModuleTestLeaderboard = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const module = await Module.findOne({ 
+      _id: id, 
+      isActive: true,
+      hasModuleTest: true 
+    });
+    
+    if (!module || !module.moduleTestId) {
+      return res.status(404).json({ message: 'No module test found for this module' });
+    }
+
+    const submissions = await ModuleTestSubmission.find({ 
+      moduleTest: module.moduleTestId,
+      moduleId: module._id
+    })
+    .sort({ score: -1, timeTaken: 1, submittedAt: 1 })
+    .select('name email phone score totalQuestions correctAnswers timeTaken submittedAt passed percentage');
+
+    const leaderboardWithRank = submissions.map((sub, index) => ({
+      rank: index + 1,
+      ...sub.toObject()
+    }));
+
+    res.json({
+      leaderboard: leaderboardWithRank,
+      totalParticipants: submissions.length,
+      testTitle: (await ModuleTest.findById(module.moduleTestId))?.title || 'Module Test',
+      passingScore: module.moduleTestSettings?.passingScore || 70
+    });
+  } catch (error) {
+    console.error('Get module module test leaderboard error:', error);
+    handleError(res, error, messages.en.serverError);
+  }
+};
+
+// ============ EXPORTS ============
+
 module.exports = {
   // Module operations
   createModule,
@@ -577,6 +1277,7 @@ module.exports = {
   toggleModuleStatus,
   updateModuleOrder,
   getAllActiveModules,
+  
   // Directory operations
   createFolder,
   createFile,
@@ -585,8 +1286,25 @@ module.exports = {
   updateFile,
   renameFolder,
   deleteDirectoryItem,
+  
   // Public APIs
   getPublicDirectoryTree,
   getPublicModuleTree,
-  getPublicFile
+  getPublicFile,
+  
+  // Quiz integration
+  attachQuizToModule,
+  detachQuizFromModule,
+  getModuleQuiz,
+  submitModuleQuiz,
+  getModuleQuizSubmissions,
+  getModuleQuizLeaderboard,
+  
+  // ModuleTest integration
+  attachModuleTestToModule,
+  detachModuleTestFromModule,
+  getModuleModuleTest,
+  submitModuleModuleTest,
+  getModuleModuleTestSubmissions,
+  getModuleModuleTestLeaderboard
 };

@@ -1,8 +1,20 @@
+require('dotenv').config();
+
+// console.log('=== Environment Variables Check ===');
+// console.log('NODE_ENV:', process.env.NODE_ENV);
+// console.log('PORT:', process.env.PORT);
+// console.log('MONGODB_URI:', process.env.MONGODB_URI ? '✓ Set' : '✗ Missing');
+// console.log('R2_BUCKET_NAME:', process.env.R2_BUCKET_NAME ? '✓ Set' : '✗ Missing');
+// console.log('R2_ENDPOINT:', process.env.R2_ENDPOINT ? '✓ Set' : '✗ Missing');
+// console.log('R2_ACCESS_KEY_ID:', process.env.R2_ACCESS_KEY_ID ? '✓ Set' : '✗ Missing');
+// console.log('R2_SECRET_ACCESS_KEY:', process.env.R2_SECRET_ACCESS_KEY ? '✓ Set' : '✗ Missing');
+// console.log('====================================');
+
+
 const express = require('express');
 const cors = require('cors');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-require('dotenv').config();
 
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
@@ -267,6 +279,8 @@ app.get('/api/debug/razorpay-keys', (req, res) => {
 
 
 app.use('/api/module', require('./routes/module'));
+
+app.use('/api/module-tests', require('./routes/moduleTest'));
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 

@@ -1,4 +1,4 @@
-// models/Module.js - Updated to support directory structure
+// models/Module.js - Updated with ModuleTest fields
 const mongoose = require('mongoose');
 
 const moduleSchema = new mongoose.Schema({
@@ -15,7 +15,7 @@ const moduleSchema = new mongoose.Schema({
     }
   },
   image: {
-    type: String, // Will store base64 string
+    type: String,
     required: true
   },
   icon: {
@@ -35,7 +35,7 @@ const moduleSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  // NEW: Directory structure fields
+  // Directory structure fields
   type: {
     type: String,
     enum: ['module', 'folder', 'file'],
@@ -63,6 +63,40 @@ const moduleSchema = new mongoose.Schema({
     type: String,
     enum: ['pdf', 'image', 'video', 'audio', 'document', 'other'],
     default: 'other'
+  },
+  // Quiz integration fields
+  // quizId: {
+  //   type: mongoose.Schema.Types.ObjectId,
+  //   ref: 'Quiz',
+  //   default: null
+  // },
+  // hasQuiz: {
+  //   type: Boolean,
+  //   default: false
+  // },
+  // quizSettings: {
+  //   passingScore: { type: Number, default: 70 },
+  //   timeLimit: { type: Number, default: null },
+  //   allowRetake: { type: Boolean, default: false },
+  //   maxAttempts: { type: Number, default: 1 },
+  //   showResults: { type: Boolean, default: true }
+  // },
+  // ModuleTest integration fields
+  moduleTestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ModuleTest',
+    default: null
+  },
+  hasModuleTest: {
+    type: Boolean,
+    default: false
+  },
+  moduleTestSettings: {
+    passingScore: { type: Number, default: 70 },
+    timeLimit: { type: Number, default: null },
+    allowRetake: { type: Boolean, default: false },
+    maxAttempts: { type: Number, default: 1 },
+    showResults: { type: Boolean, default: true }
   }
 }, {
   timestamps: true
@@ -93,15 +127,12 @@ moduleSchema.statics.deleteRecursive = async function(resourceId) {
   const resource = await this.findById(resourceId);
   if (!resource) return null;
 
-  // Get all children
   const children = await this.find({ parent: resourceId });
   
-  // Recursively delete children
   for (const child of children) {
     await this.deleteRecursive(child._id);
   }
 
-  // Delete the resource itself
   await this.findByIdAndDelete(resourceId);
   
   return resource;
@@ -113,5 +144,8 @@ moduleSchema.index({ parent: 1 });
 moduleSchema.index({ createdBy: 1 });
 moduleSchema.index({ type: 1 });
 moduleSchema.index({ fullPath: 1 });
+moduleSchema.index({ hasQuiz: 1, quizId: 1 });
+moduleSchema.index({ hasModuleTest: 1, moduleTestId: 1 });
+moduleSchema.index({ parent: 1, type: 1 });
 
 module.exports = mongoose.model('Module', moduleSchema);
