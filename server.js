@@ -283,6 +283,8 @@ app.use('/api/module', require('./routes/module'));
 app.use('/api/module-tests', require('./routes/moduleTest'));
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.use('/api/live-tests', require('./routes/liveTest'));
+
 
 // Error handling middleware
 app.use(notFound);

@@ -38,9 +38,12 @@ const getMenuItems = (user) => {
       { name: 'Manage Coupon', path: '/manage-coupon', icon: 'fact_check' },
       { name: 'Study Module', path: '/study-module', icon: 'fact_check' },
       { name: 'Manage Program', path: '/manage-program', icon: 'fact_check' },
-      { name: 'Manage Answer Writing', path: '/answer-writing', icon: 'fact_check' }
-
-
+      { name: 'Manage Answer Writing', path: '/answer-writing', icon: 'fact_check' },
+      { name: 'Mains Resources Directory', path: '/directory-master', icon: 'library_books' },
+      { name: 'Mains Meeting', path: '/meeting-admin', icon: 'groups' },
+      { name: 'Live Tests', path: '/live-test', icon: 'description' },
+      { name: 'Prelims Test Series', path: '/prelims-test-series', icon: 'description' },
+      { name: 'Mains Test Series', path: '/mains-test-series', icon: 'description' },
 
     ];
   }
@@ -75,9 +78,9 @@ const getMenuItems = (user) => {
           ...commonItems,
           { name: 'Daily Answer Writing', path: '/student-answer-writing', icon: 'description' },
           { name: 'DAW Evaluation', path: '/mains-results', icon: 'assignment' },
-          { name: 'Study Materials', path: '/materials', icon: 'library_books' },
+          { name: 'Study Materials', path: '/pre-materials', icon: 'library_books' },
           { name: 'Mentorship Sessions', path: '/pre-session', icon: 'groups' },
-          { name: 'Live Tests', path: '/mains-tests', icon: 'description' },
+          { name: 'Live Tests', path: '/live-test', icon: 'description' },
 
           // { name: 'Answer Writing', path: '/answer-writing', icon: 'edit_note' },
           // { name: 'Test History', path: '/test-history', icon: 'history' },

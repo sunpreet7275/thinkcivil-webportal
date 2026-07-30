@@ -1,13 +1,15 @@
+// models/StudentAnswerSubmission.js
+
 const mongoose = require('mongoose');
 
-const answerSubmissionSchema = new mongoose.Schema({
+const answerSchema = new mongoose.Schema({
   questionId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true
   },
   answerPDF: {
     type: String,
-    required: [true, 'Answer PDF is required']
+    required: true
   },
   language: {
     type: String,
@@ -17,6 +19,29 @@ const answerSubmissionSchema = new mongoose.Schema({
   submittedAt: {
     type: Date,
     default: Date.now
+  },
+  // NEW: Evaluation fields
+  evaluation: {
+    evaluatedPDF: {
+      type: String,
+      default: ''
+    },
+    evaluatedAt: {
+      type: Date
+    },
+    evaluatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    remarks: {
+      type: String,
+      default: ''
+    },
+    score: {
+      type: Number,
+      min: 0,
+      max: 100
+    }
   }
 });
 
@@ -31,14 +56,14 @@ const studentAnswerSubmissionSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  answers: [answerSubmissionSchema],
-  submittedAt: {
-    type: Date,
-    default: Date.now
-  },
+  answers: [answerSchema],
   isLate: {
     type: Boolean,
     default: false
+  },
+  submittedAt: {
+    type: Date,
+    default: Date.now
   },
   submissionLanguage: {
     type: String,
@@ -49,8 +74,8 @@ const studentAnswerSubmissionSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Ensure one submission per student per exercise
+// Indexes
 studentAnswerSubmissionSchema.index({ answerWritingId: 1, studentId: 1 }, { unique: true });
-studentAnswerSubmissionSchema.index({ submissionLanguage: 1 });
+studentAnswerSubmissionSchema.index({ studentId: 1, submittedAt: -1 });
 
 module.exports = mongoose.model('StudentAnswerSubmission', studentAnswerSubmissionSchema);

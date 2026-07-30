@@ -1,3 +1,5 @@
+// models/AnswerWriting.js
+
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
@@ -44,6 +46,41 @@ const answerWritingSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  // NEW: Model Answer Fields
+  modelAnswer: {
+    remark: {
+      type: String,
+      default: ''
+    },
+    answerEnglish: {
+      type: String,
+      default: ''
+    },
+    answerHindi: {
+      type: String,
+      default: ''
+    },
+    modelAnswerPDF: {
+      type: String,
+      default: ''
+    },
+    modelAnswerPDFHi: {
+      type: String,
+      default: ''
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
   },
   startDateTime: {
     type: Date,

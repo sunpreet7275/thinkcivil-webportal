@@ -613,6 +613,542 @@ const getExerciseSubmissions = async (req, res) => {
   }
 };
 
+
+const submitEvaluation = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { answerIndex, evaluatedPDF, remarks, score } = req.body;
+
+    // Validate input
+    if (answerIndex === undefined || !evaluatedPDF) {
+      return res.status(400).json({
+        success: false,
+        message: 'Answer index and evaluated PDF URL are required'
+      });
+    }
+
+    // Validate Google Drive URL
+    if (!evaluatedPDF.includes('drive.google.com') && !evaluatedPDF.includes('docs.google.com')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid Google Drive URL'
+      });
+    }
+
+    // Find the submission
+    const submission = await StudentAnswerSubmission.findById(submissionId);
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: 'Submission not found'
+      });
+    }
+
+    // Check if answer index exists
+    if (answerIndex >= submission.answers.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid answer index'
+      });
+    }
+
+    // Update evaluation
+    submission.answers[answerIndex].evaluation = {
+      evaluatedPDF: evaluatedPDF.trim(),
+      evaluatedAt: new Date(),
+      evaluatedBy: req.user._id,
+      remarks: remarks || '',
+      score: score || null
+    };
+
+    await submission.save();
+
+    // Populate student info for response
+    await submission.populate('studentId', 'fullName email');
+
+    res.json({
+      success: true,
+      message: 'Evaluation submitted successfully',
+      data: {
+        submissionId: submission._id,
+        answerIndex: answerIndex,
+        evaluatedPDF: evaluatedPDF,
+        studentName: submission.studentId?.fullName,
+        evaluatedAt: submission.answers[answerIndex].evaluation.evaluatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Submit evaluation error:', error);
+    handleError(res, error, 'Failed to submit evaluation');
+  }
+};
+
+// @desc    Get evaluation status for a submission
+// @route   GET /api/answer-writing/submissions/:submissionId/evaluation-status
+// @access  Private/Admin
+const getEvaluationStatus = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+
+    const submission = await StudentAnswerSubmission.findById(submissionId)
+      .populate('studentId', 'fullName email');
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: 'Submission not found'
+      });
+    }
+
+    const evaluationStatus = submission.answers.map((answer, index) => ({
+      answerIndex: index,
+      questionId: answer.questionId,
+      isEvaluated: !!(answer.evaluation && answer.evaluation.evaluatedPDF),
+      evaluatedPDF: answer.evaluation?.evaluatedPDF || '',
+      evaluatedAt: answer.evaluation?.evaluatedAt || null,
+      remarks: answer.evaluation?.remarks || '',
+      score: answer.evaluation?.score || null
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        submissionId: submission._id,
+        studentName: submission.studentId?.fullName,
+        studentEmail: submission.studentId?.email,
+        submissionDate: submission.submittedAt,
+        isLate: submission.isLate,
+        evaluationStatus: evaluationStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('Get evaluation status error:', error);
+    handleError(res, error, 'Failed to get evaluation status');
+  }
+};
+
+// @desc    Get all evaluations for an exercise
+// @route   GET /api/answer-writing/:exerciseId/evaluations
+// @access  Private/Admin
+const getExerciseEvaluations = async (req, res) => {
+  try {
+    const { exerciseId } = req.params;
+
+    const submissions = await StudentAnswerSubmission.find({ answerWritingId: exerciseId })
+      .populate('studentId', 'fullName email phone')
+      .sort({ submittedAt: -1 });
+
+    const evaluationData = submissions.map(submission => {
+      const subObj = submission.toObject();
+      
+      // Check if all answers are evaluated
+      const allEvaluated = subObj.answers.every(answer => 
+        answer.evaluation && answer.evaluation.evaluatedPDF
+      );
+      
+      const anyEvaluated = subObj.answers.some(answer => 
+        answer.evaluation && answer.evaluation.evaluatedPDF
+      );
+
+      return {
+        submissionId: subObj._id,
+        studentName: subObj.studentId?.fullName || 'Unknown',
+        studentEmail: subObj.studentId?.email || '',
+        submittedAt: subObj.submittedAt,
+        isLate: subObj.isLate,
+        answerCount: subObj.answers.length,
+        evaluatedCount: subObj.answers.filter(a => a.evaluation && a.evaluation.evaluatedPDF).length,
+        allEvaluated: allEvaluated,
+        anyEvaluated: anyEvaluated,
+        answers: subObj.answers.map((answer, index) => ({
+          answerIndex: index,
+          isEvaluated: !!(answer.evaluation && answer.evaluation.evaluatedPDF),
+          evaluatedPDF: answer.evaluation?.evaluatedPDF || '',
+          score: answer.evaluation?.score || null,
+          remarks: answer.evaluation?.remarks || ''
+        }))
+      };
+    });
+
+    res.json({
+      success: true,
+      count: evaluationData.length,
+      data: evaluationData
+    });
+
+  } catch (error) {
+    console.error('Get exercise evaluations error:', error);
+    handleError(res, error, 'Failed to fetch evaluations');
+  }
+};
+
+// @desc    Bulk submit evaluations for an exercise
+// @route   POST /api/answer-writing/:exerciseId/evaluations/bulk
+// @access  Private/Admin
+const bulkSubmitEvaluations = async (req, res) => {
+  try {
+    const { exerciseId } = req.params;
+    const { evaluations } = req.body;
+
+    if (!evaluations || !Array.isArray(evaluations) || evaluations.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Evaluations array is required'
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const evalData of evaluations) {
+      try {
+        const { submissionId, answerIndex, evaluatedPDF, remarks, score } = evalData;
+
+        const submission = await StudentAnswerSubmission.findById(submissionId);
+        if (!submission) {
+          errors.push({
+            submissionId,
+            error: 'Submission not found'
+          });
+          continue;
+        }
+
+        if (answerIndex >= submission.answers.length) {
+          errors.push({
+            submissionId,
+            error: 'Invalid answer index'
+          });
+          continue;
+        }
+
+        // Update evaluation
+        submission.answers[answerIndex].evaluation = {
+          evaluatedPDF: evaluatedPDF.trim(),
+          evaluatedAt: new Date(),
+          evaluatedBy: req.user._id,
+          remarks: remarks || '',
+          score: score || null
+        };
+
+        await submission.save();
+        results.push({
+          submissionId,
+          answerIndex,
+          success: true
+        });
+
+      } catch (error) {
+        errors.push({
+          submissionId: evalData.submissionId,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Processed ${results.length} evaluations successfully`,
+      data: {
+        succeeded: results,
+        failed: errors
+      }
+    });
+
+  } catch (error) {
+    console.error('Bulk submit evaluations error:', error);
+    handleError(res, error, 'Failed to submit evaluations');
+  }
+};
+
+const updateModelAnswer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remark, answerEnglish, answerHindi, modelAnswerPDF, modelAnswerPDFHi, isActive } = req.body;
+
+    const exercise = await AnswerWriting.findById(id);
+    if (!exercise) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exercise not found'
+      });
+    }
+
+    // Update model answer fields
+    if (remark !== undefined) exercise.modelAnswer.remark = remark;
+    if (answerEnglish !== undefined) exercise.modelAnswer.answerEnglish = answerEnglish;
+    if (answerHindi !== undefined) exercise.modelAnswer.answerHindi = answerHindi;
+    if (modelAnswerPDF !== undefined) exercise.modelAnswer.modelAnswerPDF = modelAnswerPDF;
+    if (modelAnswerPDFHi !== undefined) exercise.modelAnswer.modelAnswerPDFHi = modelAnswerPDFHi;
+    if (isActive !== undefined) exercise.modelAnswer.isActive = isActive;
+    
+    exercise.modelAnswer.updatedAt = new Date();
+    exercise.modelAnswer.updatedBy = req.user._id;
+    exercise.updatedBy = req.user._id;
+
+    await exercise.save();
+
+    res.json({
+      success: true,
+      message: 'Model answer updated successfully',
+      data: exercise.modelAnswer
+    });
+
+  } catch (error) {
+    console.error('Update model answer error:', error);
+    handleError(res, error, 'Failed to update model answer');
+  }
+};
+
+// @desc    Get model answer for an exercise
+// @route   GET /api/answer-writing/:id/model-answer
+// @access  Private/Admin
+const getModelAnswer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const exercise = await AnswerWriting.findById(id)
+      .populate('modelAnswer.updatedBy', 'fullName email');
+
+    if (!exercise) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exercise not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        remark: exercise.modelAnswer.remark || '',
+        answerEnglish: exercise.modelAnswer.answerEnglish || '',
+        answerHindi: exercise.modelAnswer.answerHindi || '',
+        modelAnswerPDF: exercise.modelAnswer.modelAnswerPDF || '',
+        modelAnswerPDFHi: exercise.modelAnswer.modelAnswerPDFHi || '',
+        isActive: exercise.modelAnswer.isActive !== undefined ? exercise.modelAnswer.isActive : true,
+        updatedAt: exercise.modelAnswer.updatedAt,
+        updatedBy: exercise.modelAnswer.updatedBy
+      }
+    });
+
+  } catch (error) {
+    console.error('Get model answer error:', error);
+    handleError(res, error, 'Failed to get model answer');
+  }
+};
+
+// @desc    Update specific model answer field
+// @route   PATCH /api/answer-writing/:id/model-answer/:field
+// @access  Private/Admin
+const updateModelAnswerField = async (req, res) => {
+  try {
+    const { id, field } = req.params;
+    const { value } = req.body;
+
+    const validFields = ['remark', 'answerEnglish', 'answerHindi', 'modelAnswerPDF', 'modelAnswerPDFHi', 'isActive'];
+    if (!validFields.includes(field)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid field name'
+      });
+    }
+
+    const exercise = await AnswerWriting.findById(id);
+    if (!exercise) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exercise not found'
+      });
+    }
+
+    // Update specific field
+    if (field === 'isActive') {
+      exercise.modelAnswer.isActive = value;
+    } else {
+      exercise.modelAnswer[field] = value;
+    }
+
+    exercise.modelAnswer.updatedAt = new Date();
+    exercise.modelAnswer.updatedBy = req.user._id;
+    exercise.updatedBy = req.user._id;
+
+    await exercise.save();
+
+    res.json({
+      success: true,
+      message: `${field} updated successfully`,
+      data: {
+        field,
+        value: exercise.modelAnswer[field]
+      }
+    });
+
+  } catch (error) {
+    console.error('Update model answer field error:', error);
+    handleError(res, error, 'Failed to update model answer field');
+  }
+};
+
+// Add these functions to your answerWritingController.js
+
+// @desc    Get student's submission with evaluation for a specific exercise
+// @route   GET /api/answer-writing/:exerciseId/my-evaluation
+// @access  Private (Student)
+const getMyEvaluation = async (req, res) => {
+  try {
+    const { exerciseId } = req.params;
+    const { lang = 'en' } = req.query;
+    const studentId = req.user._id;
+
+    // Get the exercise with model answer
+    const exercise = await AnswerWriting.findById(exerciseId);
+    if (!exercise) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exercise not found'
+      });
+    }
+
+    // Get student's submission
+    const submission = await StudentAnswerSubmission.findOne({
+      answerWritingId: exerciseId,
+      studentId: studentId
+    });
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: 'No submission found for this exercise'
+      });
+    }
+
+    // Prepare response data
+    const responseData = {
+      exercise: {
+        _id: exercise._id,
+        name: lang === 'hi' ? (exercise.nameHi || exercise.name) : exercise.name,
+        nameHi: exercise.nameHi,
+        description: lang === 'hi' ? (exercise.descriptionHi || exercise.description) : exercise.description,
+        descriptionHi: exercise.descriptionHi,
+        questions: exercise.questions.map(q => ({
+          _id: q._id,
+          questionText: lang === 'hi' ? (q.questionTextHi || q.questionText) : q.questionText,
+          questionTextHi: q.questionTextHi
+        }))
+      },
+      submission: {
+        _id: submission._id,
+        submittedAt: submission.submittedAt,
+        isLate: submission.isLate,
+        submissionLanguage: submission.submissionLanguage,
+        answers: submission.answers.map((answer, index) => ({
+          index: index,
+          questionId: answer.questionId,
+          answerPDF: answer.answerPDF,
+          language: answer.language,
+          evaluation: answer.evaluation || null
+        }))
+      },
+      modelAnswer: exercise.modelAnswer && exercise.modelAnswer.isActive ? {
+        remark: exercise.modelAnswer.remark || '',
+        answerEnglish: exercise.modelAnswer.answerEnglish || '',
+        answerHindi: exercise.modelAnswer.answerHindi || '',
+        modelAnswerPDF: exercise.modelAnswer.modelAnswerPDF || '',
+        modelAnswerPDFHi: exercise.modelAnswer.modelAnswerPDFHi || '',
+        isActive: exercise.modelAnswer.isActive
+      } : null
+    };
+
+    res.json({
+      success: true,
+      data: responseData
+    });
+
+  } catch (error) {
+    console.error('Get my evaluation error:', error);
+    handleError(res, error, 'Failed to get evaluation');
+  }
+};
+
+// @desc    Get all evaluated submissions for a student
+// @route   GET /api/answer-writing/my-evaluations
+// @access  Private (Student)
+const getMyEvaluations = async (req, res) => {
+  try {
+    const { lang = 'en' } = req.query;
+    const studentId = req.user._id;
+
+    // Get all submissions with populated exercise data
+    const submissions = await StudentAnswerSubmission.find({ studentId: studentId })
+      .populate('answerWritingId', 'name nameHi description descriptionHi questions modelAnswer startDateTime endDateTime')
+      .sort({ submittedAt: -1 });
+
+    // Filter to only show submissions that have at least one evaluated answer
+    const evaluatedSubmissions = submissions.filter(sub => 
+      sub.answers.some(a => a.evaluation && a.evaluation.evaluatedPDF)
+    );
+
+    const data = evaluatedSubmissions.map(sub => {
+      const exercise = sub.answerWritingId;
+      const evaluatedAnswers = sub.answers
+        .map((answer, index) => ({
+          index: index,
+          questionId: answer.questionId,
+          questionText: lang === 'hi' 
+            ? (exercise.questions.find(q => q._id.toString() === answer.questionId.toString())?.questionTextHi || '')
+            : (exercise.questions.find(q => q._id.toString() === answer.questionId.toString())?.questionText || ''),
+          answerPDF: answer.answerPDF,
+          language: answer.language,
+          evaluation: answer.evaluation || null,
+          isEvaluated: !!(answer.evaluation && answer.evaluation.evaluatedPDF)
+        }))
+        .filter(a => a.isEvaluated);
+
+      // Get model answer if active
+      const modelAnswer = exercise.modelAnswer && exercise.modelAnswer.isActive ? {
+        remark: exercise.modelAnswer.remark || '',
+        answerEnglish: exercise.modelAnswer.answerEnglish || '',
+        answerHindi: exercise.modelAnswer.answerHindi || '',
+        modelAnswerPDF: exercise.modelAnswer.modelAnswerPDF || '',
+        modelAnswerPDFHi: exercise.modelAnswer.modelAnswerPDFHi || '',
+        isActive: exercise.modelAnswer.isActive
+      } : null;
+
+      return {
+        submissionId: sub._id,
+        exercise: {
+          _id: exercise._id,
+          name: lang === 'hi' ? (exercise.nameHi || exercise.name) : exercise.name,
+          nameHi: exercise.nameHi,
+          description: lang === 'hi' ? (exercise.descriptionHi || exercise.description) : exercise.description,
+          startDateTime: exercise.startDateTime,
+          endDateTime: exercise.endDateTime
+        },
+        submittedAt: sub.submittedAt,
+        isLate: sub.isLate,
+        submissionLanguage: sub.submissionLanguage,
+        evaluatedAnswers: evaluatedAnswers,
+        modelAnswer: modelAnswer,
+        evaluationCount: evaluatedAnswers.length,
+        totalQuestions: exercise.questions?.length || 0,
+        allEvaluated: evaluatedAnswers.length === (exercise.questions?.length || 0)
+      };
+    });
+
+    res.json({
+      success: true,
+      count: data.length,
+      data: data
+    });
+
+  } catch (error) {
+    console.error('Get my evaluations error:', error);
+    handleError(res, error, 'Failed to get evaluations');
+  }
+};
+
+// Add to module.exports
 module.exports = {
   createAnswerWriting,
   getAllAnswerWritingAdmin,
@@ -623,5 +1159,14 @@ module.exports = {
   toggleExerciseStatus,
   submitAnswers,
   getMySubmissions,
-  getExerciseSubmissions
+  getExerciseSubmissions,
+  submitEvaluation,
+  getEvaluationStatus,
+  getExerciseEvaluations,
+  bulkSubmitEvaluations,
+  updateModelAnswer,
+  getModelAnswer,
+  updateModelAnswerField,
+  getMyEvaluation,
+  getMyEvaluations
 };
